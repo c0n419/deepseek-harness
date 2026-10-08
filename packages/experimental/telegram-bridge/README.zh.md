@@ -72,6 +72,8 @@ kind: "package-reference"
 | 智能体调用 `ask_user_question` | `❓` 和第一个问题，有提示音 |
 | 其他变化 | 仅编辑状态卡片 |
 
+桥接在启动时把 `/yeni`、`/oturumlar`、`/durum` 和 `/dur` 发布为群组的命令菜单，因此输入 `/` 时会出现这些建议。
+
 允许用户的输入：
 
 | 输入 | 效果 |

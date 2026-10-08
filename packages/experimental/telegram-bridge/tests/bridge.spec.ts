@@ -19,6 +19,8 @@ const OWNER = 42
 /** In-memory Bot API: records calls and serves queued updates once. */
 class FakeTelegram {
   readonly calls: Call[] = []
+  /** `setMyCommands` parameters, kept apart from chat writes. */
+  readonly menus: Record<string, unknown>[] = []
   private updates: unknown[] = []
   private nextUpdate = 1
   failNext: string | undefined
@@ -36,6 +38,10 @@ class FakeTelegram {
       const batch = this.updates
       this.updates = []
       return this.ok(batch)
+    }
+    if (method === 'setMyCommands') {
+      this.menus.push(params)
+      return this.ok(true)
     }
     this.calls.push({ method, params })
     if (this.failNext === method) {
@@ -181,6 +187,8 @@ describe('telegram-bridge plugin', () => {
     expect(card?.params.text).toContain('Web arayüzünde aç')
     expect(note?.params).toMatchObject({ message_thread_id: 77, disable_notification: false, text: '✅ Tur bitti.\n<blockquote>Bitti</blockquote>' })
     expect(telegram.sent('pinChatMessage')).toHaveLength(1)
+    expect(telegram.menus.map(menu => menu.scope)).toEqual([{ type: 'chat', chat_id: CHAT }])
+    expect((telegram.menus[0]?.commands as { command: string }[]).map(entry => entry.command)).toEqual(['yeni', 'oturumlar', 'durum', 'dur'])
 
     emit({ id: 'mate', parentSession: 'lead-1' }, 'turn/start')
     telegram.failNext = 'editMessageText'

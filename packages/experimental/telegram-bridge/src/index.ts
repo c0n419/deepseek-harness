@@ -73,6 +73,14 @@ export const Config: z<Config> = z.object({
 
 type BridgeDomain = Domain<typeof bridgeDomain>
 
+/** Commands offered in the group's `/` menu. */
+const COMMANDS = [
+  { command: 'yeni', description: 'Yeni oturum başlat: /yeni <görev>' },
+  { command: 'oturumlar', description: 'Takip edilen oturumları listele' },
+  { command: 'durum', description: 'Bu konunun durum kartını göster' },
+  { command: 'dur', description: 'Bu konudaki turu durdur' },
+]
+
 /** Approval request fields the bridge reads. */
 interface ApprovalAsk {
   readonly agent: { readonly id: string }
@@ -383,6 +391,12 @@ class Bridge {
     })
   }
 
+  /** Publish the command menu for the configured group. */
+  registerCommands(): void {
+    const scope = { type: 'chat', chat_id: this.config.chatId }
+    this.report(this.client.enqueue('setMyCommands', { commands: COMMANDS, scope }).then(() => undefined))
+  }
+
   /** Run one refresh and report its failure. */
   tick(): void {
     this.report(this.refresh())
@@ -414,6 +428,7 @@ export function apply(ctx: Context, config: Config): void {
     const opened = ctx.storageDomain.open(bridgeDomain).then((domain) => {
       if (controller.signal.aborted) return domain.close()
       bridge.attach(domain)
+      bridge.registerCommands()
       timer = setInterval(() => { bridge.tick() }, config.cardIntervalMs)
       void bridge.poll(controller.signal)
       return undefined

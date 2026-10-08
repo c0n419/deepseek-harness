@@ -72,6 +72,8 @@ Mount the plugin in a composition that provides `storageDomain`:
 | An agent calls `ask_user_question` | `❓` with the first question, with sound |
 | Any other change | Status card edit only |
 
+The bridge publishes `/yeni`, `/oturumlar`, `/durum`, and `/dur` as the group's command menu at startup, so typing `/` suggests them.
+
 Input from allowed users:
 
 | Input | Effect |
