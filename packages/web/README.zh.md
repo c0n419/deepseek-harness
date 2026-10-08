@@ -28,6 +28,7 @@ kind: "package-group"
 |---|---|---|
 | [`web/`](web/README.zh.md) | 搜索与抓取服务：通过可互换的后端搜索与抓取 URL，统一选择与错误策略 | `ctx.web` |
 | [`web-search-exa/`](web-search-exa/README.zh.md) | 通过 Exa 搜索 web | 注册到 `ctx.web` |
+| [`web-search-firecrawl/`](web-search-firecrawl/README.zh.md) | 通过 Firecrawl 搜索 web | 注册到 `ctx.web` |
 | [`web-search-perplexity/`](web-search-perplexity/README.zh.md) | 通过 Perplexity 搜索 web | 注册到 `ctx.web` |
 | [`web-search-deepseek/`](web-search-deepseek/README.zh.md) | 通过 DeepSeek 原生搜索搜索 web | 注册到 `ctx.web` |
 | [`web-fetch-http/`](web-fetch-http/README.zh.md) | 匿名抓取公共 HTTP(S) 页面 | 注册到 `ctx.web` |

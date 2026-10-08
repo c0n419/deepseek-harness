@@ -1,0 +1,55 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/web/web-search-firecrawl/README.md
+/:
+  en: b60ed00574ffe07a
+  zh: 488c03b01bf7475c
+/deepseek-ai-dsh-web-search-firecrawl:
+  en: 0ef071e988ccb22b
+  zh: cbc76b1371559318
+/deepseek-ai-dsh-web-search-firecrawl/summary:
+  en: a113ea7abc5bc702
+  zh: d37714b78458fd3c
+/deepseek-ai-dsh-web-search-firecrawl/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: a134331a31395608
+/deepseek-ai-dsh-web-search-firecrawl/use-this-package:
+  en: 6207d63280259169
+  zh: 97dfd5d893abacfe
+/deepseek-ai-dsh-web-search-firecrawl/use-this-package/when-to-choose-it:
+  en: bddfc44efd2e4594
+  zh: 2893d161923db187
+/deepseek-ai-dsh-web-search-firecrawl/use-this-package/minimal-configuration:
+  en: 0d83f8817668b163
+  zh: ad50557365279ee5
+/deepseek-ai-dsh-web-search-firecrawl/use-this-package/what-a-search-returns:
+  en: da2be3567043d94b
+  zh: f7bdd680965e76b2
+/deepseek-ai-dsh-web-search-firecrawl/use-this-package/failures-and-recovery:
+  en: 02eb007bdcab80f3
+  zh: b3d5035803b3a6f9
+/deepseek-ai-dsh-web-search-firecrawl/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 7ae097f3abcc5d9c
+/deepseek-ai-dsh-web-search-firecrawl/understand-the-implementation/source-map:
+  en: 8c632d010db301e7
+  zh: c7487974cf69c877
+/deepseek-ai-dsh-web-search-firecrawl/understand-the-implementation/request-and-mapping-flow:
+  en: 1a284ac79e71be22
+  zh: 3ac57e8e3a124656
+/deepseek-ai-dsh-web-search-firecrawl/further-exploration:
+  en: 8db3c36ef2a2ea67
+  zh: 7a8d4cef6e3f318d
+/deepseek-ai-dsh-web-search-firecrawl/model-experience:
+  en: e23d4e75a3e7ce34
+  zh: 6656b283e60389b7
+/deepseek-ai-dsh-web-search-firecrawl/model-experience/kv-cache-effect:
+  en: 40294c1c31b74824
+  zh: f78e0e881ae7e0cf
+/deepseek-ai-dsh-web-search-firecrawl/known-limitations-and-deferred-work:
+  en: 50a6cd83f5681b00
+  zh: 6c6b29d6c4fca742
+/deepseek-ai-dsh-web-search-firecrawl/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: bd8a8936229e035e

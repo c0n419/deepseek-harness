@@ -833,7 +833,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-agent-team`
 
 - `inject`: `agents` · `sessions` · `sessionPersistence` · `sessionProjections` · `subagents`
-- `source`: [`packages/experimental/agent-team/src/types.ts:152`](../packages/experimental/agent-team/src/types.ts)
+- `source`: [`packages/experimental/agent-team/src/types.ts:154`](../packages/experimental/agent-team/src/types.ts)
 
 ```ts config-catalog
 /** Team-service deployment limits. */
@@ -1062,6 +1062,55 @@ export interface InspectorOptions {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-inspector -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-llm-acp -->
+<a id="deepseek-aidsh-experimental-llm-acp"></a>
+
+## `@deepseek-ai/dsh-experimental-llm-acp`
+
+- `inject`: `llm` · `subprocess` · `agents`
+- `source`: [`packages/experimental/llm-acp/src/index.ts:42`](../packages/experimental/llm-acp/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration. */
+export interface Config {
+  /**
+   * Provider route registered on `ctx.llm`. Model ids under it are `<harness>` or `<harness>/<model>`;
+   * `<model>` selects a value of the agent's ACP `model` session config option.
+   */
+  provider: string
+  /** External harnesses by name; the name is the model-id prefix. */
+  harnesses: Record<string, HarnessConfig>
+  /** Answer to every permission prompt: `allow` selects the first allow option, `reject` cancels. */
+  permission: PermissionPolicy
+  /** `worktree` runs each Session in its own git worktree and branch; `shared` uses the Session cwd. */
+  isolation: 'worktree' | 'shared'
+  /** Absolute directory holding per-Session worktrees; defaults to `~/.dsh/worktrees`. */
+  worktreeRoot?: string
+  /** Branch name prefix for per-Session worktrees. */
+  branchPrefix: string
+  /** Stdin-EOF grace (ms) before the process is terminated on dispose. */
+  disposeEofGraceMs: number
+  /** SIGTERM-to-SIGKILL grace (ms). */
+  disposeGraceMs: number
+}
+
+/** How to launch one external harness as an ACP agent. */
+export interface HarnessConfig {
+  /** Executable that speaks ACP on stdio (the harness itself or its ACP adapter). */
+  command: string
+  /** Arguments passed to {@link command}. */
+  args: string[]
+  /** Extra environment for the process, merged over the credential-scrubbed parent env. */
+  env: Record<string, string>
+  /** ACP auth method id passed to `authenticate` before each session, for agents that require the call. */
+  authMethod?: string
+}
+
+/** Fixed answer to the external agent's permission prompts. */
+export type PermissionPolicy = 'allow' | 'reject'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-llm-acp -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-ptc-runtime-python -->
 <a id="deepseek-aidsh-experimental-ptc-runtime-python"></a>
 
@@ -1214,7 +1263,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-tool-agent-team`
 
 - `inject`: `agents` · `agentTeams` · `tools` · `systemPrompt`
-- `source`: [`packages/experimental/tool-agent-team/src/index.ts:17`](../packages/experimental/tool-agent-team/src/index.ts)
+- `source`: [`packages/experimental/tool-agent-team/src/index.ts:18`](../packages/experimental/tool-agent-team/src/index.ts)
 
 ```ts config-catalog
 /** Tool routing configuration. */
@@ -1223,6 +1272,12 @@ export interface Config {
   readonly freshProvider?: string
   /** Continuable-subagent provider used for completed-prefix fork teammates. */
   readonly forkProvider?: string
+  /**
+   * LLM provider route whose models are external coding agents (`dsh-experimental-llm-acp`).
+   * When set, `spawn_teammate` accepts `harness` and runs that teammate on the route with no Team tools;
+   * its turn replies are forwarded to the Lead.
+   */
+  readonly externalProvider?: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-agent-team -->
@@ -4239,6 +4294,27 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-exa -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-firecrawl -->
+<a id="deepseek-aidsh-web-search-firecrawl"></a>
+
+## `@deepseek-ai/dsh-web-search-firecrawl`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-search-firecrawl/src/index.ts:24`](../packages/web/web-search-firecrawl/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /** Firecrawl API key. Falls back to `$FIRECRAWL_API_KEY`. Empty → provider unavailable. */
+  apiKey?: string
+  /** API base; `/v2/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** Default result count when a request carries no `maxResults`. Omitted = Firecrawl's default. */
+  limit?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-firecrawl -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-perplexity -->
 <a id="deepseek-aidsh-web-search-perplexity"></a>
 
@@ -4499,6 +4575,7 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-agent-team-profile` | — | [`packages/experimental/agent-team-profile/src/index.ts`](../packages/experimental/agent-team-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-browser-use-runtime` | — | [`packages/experimental/browser-use-runtime/src/index.ts`](../packages/experimental/browser-use-runtime/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-inspector-profile` | — | [`packages/experimental/inspector-profile/src/index.ts`](../packages/experimental/inspector-profile/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-team-mode-profile` | — | [`packages/experimental/team-mode-profile/src/index.ts`](../packages/experimental/team-mode-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-voice-input-bundle` | — | [`packages/experimental/voice-input-bundle/src/index.ts`](../packages/experimental/voice-input-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-packer` | — | [`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-runtime` | — | [`packages/experimental/webworker-runtime/src/index.ts`](../packages/experimental/webworker-runtime/src/index.ts) |
