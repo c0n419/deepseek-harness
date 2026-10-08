@@ -749,6 +749,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Loads mods that defineMod plugins add, raises their hook chains from harness extension points, and draws the band above the prompt over its Remote.',
   },
   {
+    key: 'herdr',
+    pkg: 'experimental-herdr',
+    title: 'Herdr multiplexer socket service',
+    mode: 'core',
+    note: 'Owns the process-global Herdr server view over one AF_UNIX subscription and publishes it as a Remote stream; the Web panel consumes it and no Session data is involved.',
+  },
+  {
     key: 'inspector',
     pkg: 'inspector',
     title: 'Cross-realm runtime inspection',

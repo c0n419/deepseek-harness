@@ -1238,6 +1238,55 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'herdr',
+    summary: 'Host-side Herdr service.',
+    description: 'Host-side Herdr service.\n\nThe connection is established lazily on the first watch or command, because a deployment may compose the plugin before Herdr starts; a load-time dial would make the harness\'s startup order a correctness requirement.',
+    methods: [
+      {
+        signature: '@Remote({ mode: \'stream\' }) async *watch(signal: AbortSignal): AsyncIterable<HerdrView>',
+        description: 'Watch the server\'s live state: the current view, then every coalesced change, until the Client stops watching.',
+        parameters: [{ name: 'signal', description: 'carrier cancellation.' }],
+        returns: 'every frame the stream publishes, current view first.',
+      },
+      {
+        signature: '@Remote async read(paneId: HerdrPaneId): Promise<HerdrReadResult>',
+        description: 'Read one pane\'s recent output as terminal rows with their colors, plus the pane\'s column count so a renderer wraps exactly as the pane does. The server pushes no text, so this stays a lazy read of the pane a caller displays.\n\nThe line budget is `readLines` from configuration rather than a parameter: an optional Remote parameter is not expressible through the generated descriptor, so a caller could not omit it.',
+        parameters: [{ name: 'paneId', description: 'pane to read.' }],
+        returns: 'the pane\'s text, or `{notFound: true}` when the pane is gone.',
+      },
+      {
+        signature: '@Remote async sendText(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>',
+        description: 'Type raw terminal input into a pane: the bytes a terminal emulator emits for keystrokes, arrows, and control characters, delivered through `pane.send_text` unchanged. A payload above `maxInputBytes` is refused as a result, never forwarded in part.',
+        parameters: [{ name: 'paneId', description: 'pane receiving the input.' }, { name: 'text', description: 'raw input, including escape sequences.' }],
+        returns: 'success, `input_too_large`, or the server\'s refusal code.',
+      },
+      {
+        signature: '@Remote async prompt(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>',
+        description: 'Submit one prompt to the agent occupying a pane.\n\n`agent.prompt` addresses an agent, so a pane with no recognized agent is a result (`agent_not_found`), never a throw: the caller asked about a pane and the answer is that the pane has no agent to prompt.',
+        parameters: [{ name: 'paneId', description: 'pane whose agent receives the prompt.' }, { name: 'text', description: 'prompt text, submitted with an encoded Enter.' }],
+        returns: 'success, or the server\'s refusal code (`agent_blocked`, `agent_not_found`, …).',
+      },
+      {
+        signature: '@Remote async sendKeys(paneId: HerdrPaneId, keys: readonly HerdrKey[]): Promise<HerdrCommandResult>',
+        description: 'Send logical keys to a pane. `pane.send_keys` addresses the pane itself, so a shell without an agent accepts keys exactly as an agent\'s pane does.',
+        parameters: [{ name: 'paneId', description: 'pane to receive the keys.' }, { name: 'keys', description: 'keys to send, restricted to the surface\'s allowlist.' }],
+        returns: 'success, or an error result naming the rejected key.',
+      },
+      {
+        signature: '@Remote async focus(paneId: HerdrPaneId): Promise<HerdrCommandResult>',
+        description: 'Focus one pane, making it the server\'s focused pane.\n\n`pane.focus` addresses the pane directly, so every pane is focusable, including a shell that hosts no agent.',
+        parameters: [{ name: 'paneId', description: 'pane to focus.' }],
+        returns: 'success, or the server\'s refusal code.',
+      },
+      {
+        signature: 'async dispose(): Promise<void>',
+        description: 'Close the service: stop reconnecting, close the subscription, and await the connection\'s release. Idempotent; later calls throw the recorded reason.',
+        parameters: [],
+        returns: 'after the subscription connection is closed.',
+      },
+    ],
+  },
+  {
     key: 'hmr',
     summary: 'Hot reload service with Cordis-compatible module configuration and events.',
     description: 'Hot reload service with Cordis-compatible module configuration and events.',
@@ -5371,6 +5420,54 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GrantRecord',
     declaration: 'export interface GrantRecord {\n    readonly kind: \'grant\';\n    readonly payload: unknown;\n}',
+  },
+  {
+    name: 'HerdrAgent',
+    declaration: 'export interface HerdrAgent {\n    paneId: HerdrPaneId;\n    workspaceId: HerdrWorkspaceId;\n    tabId: HerdrTabId;\n    name?: HerdrAgentName;\n    agent?: string;\n    agentStatus: HerdrAgentStatus;\n    interactiveReady: boolean;\n    launchPending: boolean;\n    focused: boolean;\n}',
+  },
+  {
+    name: 'HerdrAgentStatus',
+    declaration: 'export type HerdrAgentStatus = \'idle\' | \'working\' | \'blocked\' | \'done\' | \'unknown\';',
+  },
+  {
+    name: 'HerdrCommandError',
+    declaration: 'export interface HerdrCommandError {\n    ok: false;\n    code: string;\n    message: string;\n}',
+  },
+  {
+    name: 'HerdrCommandResult',
+    declaration: 'export type HerdrCommandResult = {\n    ok: true;\n} | HerdrCommandError;',
+  },
+  {
+    name: 'HerdrConnection',
+    declaration: 'export type HerdrConnection = {\n    status: \'connected\';\n    version: string;\n    protocol: number;\n} | {\n    status: \'unavailable\';\n    reason: string;\n} | {\n    status: \'incompatible\';\n    expected: number;\n    actual: number;\n};',
+  },
+  {
+    name: 'HerdrPane',
+    declaration: 'export interface HerdrPane {\n    paneId: HerdrPaneId;\n    workspaceId: HerdrWorkspaceId;\n    tabId: HerdrTabId;\n    focused: boolean;\n    agentStatus: HerdrAgentStatus;\n    revision: number;\n    agent?: HerdrAgentName;\n    foregroundCwd?: string;\n    terminalTitle?: string;\n}',
+  },
+  {
+    name: 'HerdrRead',
+    declaration: 'export interface HerdrRead {\n    paneId: HerdrPaneId;\n    text: string;\n    cols: number;\n    revision: number;\n    truncated: boolean;\n}',
+  },
+  {
+    name: 'HerdrReadNotFound',
+    declaration: 'export interface HerdrReadNotFound {\n    notFound: true;\n}',
+  },
+  {
+    name: 'HerdrReadResult',
+    declaration: 'export type HerdrReadResult = HerdrRead | HerdrReadNotFound;',
+  },
+  {
+    name: 'HerdrTab',
+    declaration: 'export interface HerdrTab {\n    tabId: HerdrTabId;\n    workspaceId: HerdrWorkspaceId;\n    label: string;\n    focused: boolean;\n    paneCount: number;\n    agentStatus: HerdrAgentStatus;\n}',
+  },
+  {
+    name: 'HerdrView',
+    declaration: 'export interface HerdrView {\n    connection: HerdrConnection;\n    outputRefreshMs: number;\n    workspaces: HerdrWorkspace[];\n    tabs: HerdrTab[];\n    panes: HerdrPane[];\n    agents: HerdrAgent[];\n    focusedPaneId?: HerdrPaneId;\n}',
+  },
+  {
+    name: 'HerdrWorkspace',
+    declaration: 'export interface HerdrWorkspace {\n    workspaceId: HerdrWorkspaceId;\n    label: string;\n    focused: boolean;\n    tabCount: number;\n    paneCount: number;\n    agentStatus: HerdrAgentStatus;\n}',
   },
   {
     name: 'HookBudget',

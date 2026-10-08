@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-08-herdr-state-remote-stream.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-08-herdr-state-remote-stream.md
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream:
+  en: b655148c8956bc6a
+  zh: d00f1185244bb901
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/problem:
+  en: 197f72babc0901b6
+  zh: f8d9fd40afa694fd
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/decision:
+  en: 345e80720b482608
+  zh: d33378cdaac350f7
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/decision/host-and-client-data-path:
+  en: 6772052e11d6b014
+  zh: 56de99fd47968b1b
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/decision/socket-transport-and-lifetime:
+  en: 38b365fbfbdb409b
+  zh: aa22263cf01fced4
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/decision/configuration-and-deployment:
+  en: daec9ed9d775ea73
+  zh: f6b7ba258aadd721
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/alternatives-considered:
+  en: 5358eac81b6a0aca
+  zh: b0650d3ab9f66f0b
+/agent-note-herdr-state-reaches-the-gui-through-a-host-remote-stream/consequences:
+  en: 594871c9a9ee6767
+  zh: 7a64fc0866be45da

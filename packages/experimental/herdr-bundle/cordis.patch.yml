@@ -1,0 +1,9 @@
+# Experimental Herdr bundle layer. Inserts the host socket service and the Web
+# panel; both rows stay inert until the bundle is enabled.
+
+- insert:
+    - id: herdr
+      name: '@deepseek-ai/dsh-experimental-herdr'
+
+    - id: ui-herdr
+      name: '@deepseek-ai/dsh-experimental-client-ui-herdr'

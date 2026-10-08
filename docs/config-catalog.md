@@ -991,6 +991,48 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-herdr -->
+<a id="deepseek-aidsh-experimental-herdr"></a>
+
+## `@deepseek-ai/dsh-experimental-herdr`
+
+- `source`: [`packages/experimental/herdr/src/index.ts:82`](../packages/experimental/herdr/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration: everything a deployment may vary. */
+export interface Config {
+  /**
+   * Absolute path of the Herdr API socket. Omission resolves
+   * `HERDR_SOCKET_PATH`, then the default session's socket under the Herdr
+   * config directory.
+   */
+  socketPath?: string
+  /** Wall-clock budget for one request/response round trip, in milliseconds; omission defaults to 10000. */
+  requestTimeoutMs?: number
+  /** Protocol number this build speaks; a mismatch reports `incompatible` instead of proceeding; omission defaults to 20. */
+  expectedProtocol?: number
+  /** First reconnect delay after a dropped event stream, in milliseconds; omission defaults to 250. */
+  reconnectInitialMs?: number
+  /** Reconnect delay ceiling, in milliseconds; omission defaults to 5000. */
+  reconnectMaxMs?: number
+  /** Maximum accepted bytes of one reply or event line; omission defaults to 1048576. */
+  maxFrameBytes?: number
+  /** Lines a lazy pane read requests; omission defaults to 400. */
+  readLines?: number
+  /** Milliseconds view updates are coalesced within, so a busy pane cannot flood the Client; omission defaults to 120. */
+  outputCoalesceMs?: number
+  /**
+   * Milliseconds between re-reads of the pane a panel shows. Herdr pushes no
+   * event when a plain shell prints, so a shown pane follows its output by
+   * re-reading; omission defaults to 1000.
+   */
+  outputRefreshMs?: number
+  /** Maximum UTF-8 bytes one `sendText` call forwards to a pane; omission defaults to 65536. */
+  maxInputBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-herdr -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-inspector -->
 <a id="deepseek-aidsh-experimental-inspector"></a>
 
@@ -4413,6 +4455,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-experimental-auto-review` | `approval` · `llm` · `permissionPresets` · `sessions` · `tools` | [`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | — | [`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | — | [`packages/experimental/client-ui-claude-code-mods/src/index.ts`](../packages/experimental/client-ui-claude-code-mods/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-client-ui-herdr` | — | [`packages/experimental/client-ui-herdr/src/index.ts`](../packages/experimental/client-ui-herdr/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-voice-input` | — | [`packages/experimental/client-ui-voice-input/src/index.ts`](../packages/experimental/client-ui-voice-input/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` | `computerUse` · `tools` · `systemPrompt` | [`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-session-inspector` | — | [`packages/experimental/session-inspector/src/index.ts`](../packages/experimental/session-inspector/src/index.ts) |
@@ -4496,6 +4539,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-deque` | — | [`packages/util/deque/src/index.ts`](../packages/util/deque/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-agent-team-profile` | — | [`packages/experimental/agent-team-profile/src/index.ts`](../packages/experimental/agent-team-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-browser-use-runtime` | — | [`packages/experimental/browser-use-runtime/src/index.ts`](../packages/experimental/browser-use-runtime/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-herdr-bundle` | — | [`packages/experimental/herdr-bundle/src/index.ts`](../packages/experimental/herdr-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-inspector-profile` | — | [`packages/experimental/inspector-profile/src/index.ts`](../packages/experimental/inspector-profile/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-voice-input-bundle` | — | [`packages/experimental/voice-input-bundle/src/index.ts`](../packages/experimental/voice-input-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-packer` | — | [`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts) |

@@ -52,6 +52,11 @@
       "@deepseek-ai/dsh-experimental-client-ui-voice-input/client": ["./packages/experimental/client-ui-voice-input/src/client/index.ts"],
       "@deepseek-ai/dsh-experimental-client-ui-claude-code-mods": ["./packages/experimental/client-ui-claude-code-mods/src/index.ts"],
       "@deepseek-ai/dsh-experimental-client-ui-claude-code-mods/client": ["./packages/experimental/client-ui-claude-code-mods/src/client/index.ts"],
+      "@deepseek-ai/dsh-experimental-client-ui-herdr": ["./packages/experimental/client-ui-herdr/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-client-ui-herdr/client": ["./packages/experimental/client-ui-herdr/src/client/index.ts"],
+      "@deepseek-ai/dsh-experimental-herdr": ["./packages/experimental/herdr/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-herdr/types": ["./packages/experimental/herdr/src/types.ts"],
+      "@deepseek-ai/dsh-experimental-herdr-bundle": ["./packages/experimental/herdr-bundle/src/index.ts"],
 
       "@deepseek-ai/dsh-experimental-claude-code-mods/types": ["./packages/experimental/claude-code-mods/src/types.ts"],
       // The example mods are source-only plugin entries; a source launch resolves the package subpath here.
