@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/llm-acp/README.md
+/:
+  en: c952a971baff53c8
+  zh: 6f9883a3d1fc41c3
+/deepseek-ai-dsh-experimental-llm-acp:
+  en: e72fb9118f874d29
+  zh: e415156eb4b338b9
+/deepseek-ai-dsh-experimental-llm-acp/summary:
+  en: 7527016a368668c8
+  zh: 6c985d10f3bd8487
+/deepseek-ai-dsh-experimental-llm-acp/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: a134331a31395608
+/deepseek-ai-dsh-experimental-llm-acp/use-this-package:
+  en: 40429918420b9466
+  zh: 8d43d9bde656cac5
+/deepseek-ai-dsh-experimental-llm-acp/use-this-package/configuration:
+  en: 9c7b5e161a05b16b
+  zh: da0ba49830588d81
+/deepseek-ai-dsh-experimental-llm-acp/understand-the-implementation:
+  en: b2ddac0fe5e443cd
+  zh: 2991b93fa6f70030
+/deepseek-ai-dsh-experimental-llm-acp/further-exploration:
+  en: 89f301e162a5fed4
+  zh: 508892fa97aa284e
+/deepseek-ai-dsh-experimental-llm-acp/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-llm-acp/model-experience/external-agent-turns:
+  en: 03727cae50961147
+  zh: 9b541c86fdadbe01
+/deepseek-ai-dsh-experimental-llm-acp/model-experience/external-agent-turns/what-the-model-sees:
+  en: f776cb2a73d0dbbf
+  zh: b4a00a575876c895
+/deepseek-ai-dsh-experimental-llm-acp/model-experience/external-agent-turns/token-effect:
+  en: 7da7482dc087749f
+  zh: 5b598d8db9f91c87
+/deepseek-ai-dsh-experimental-llm-acp/model-experience/external-agent-turns/kv-cache-effect:
+  en: 8a3d69f6d8a8c42c
+  zh: 6e0b1621de391d32
+/deepseek-ai-dsh-experimental-llm-acp/known-limitations-and-deferred-work:
+  en: dcccba872ad5e292
+  zh: 531c3a8e8355a95e
+/deepseek-ai-dsh-experimental-llm-acp/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: bd8a8936229e035e

@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/team-mode-profile/README.md
+/:
+  en: 91f627ec4ec9d927
+  zh: dc01f4e9688c48d3
+/deepseek-ai-dsh-experimental-team-mode-profile:
+  en: 56b8698a3de90262
+  zh: 32cfa3075a42f70a
+/deepseek-ai-dsh-experimental-team-mode-profile/summary:
+  en: 867019fc487c0046
+  zh: 3b75f2e0f1c345d9
+/deepseek-ai-dsh-experimental-team-mode-profile/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: a134331a31395608
+/deepseek-ai-dsh-experimental-team-mode-profile/use-this-package:
+  en: bbff250eba0f1b89
+  zh: b20a47f82d8ab6e0
+/deepseek-ai-dsh-experimental-team-mode-profile/use-this-package/enable-team-mode:
+  en: acc80e2d358dbc6f
+  zh: c630791d0e16c258
+/deepseek-ai-dsh-experimental-team-mode-profile/use-this-package/external-developers:
+  en: 23d60cf2aa919ed4
+  zh: d6a21764bc1cf5ed
+/deepseek-ai-dsh-experimental-team-mode-profile/understand-the-implementation:
+  en: acee625cba1887f4
+  zh: 274c3f7b4cb49c9a
+/deepseek-ai-dsh-experimental-team-mode-profile/further-exploration:
+  en: 290e0a4cf3b562f4
+  zh: 5526c1cc9357bf17
+/deepseek-ai-dsh-experimental-team-mode-profile/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-team-mode-profile/model-experience/team-policy-and-tools:
+  en: 8e1e365ff3b0dfb2
+  zh: 408116c55540071d
+/deepseek-ai-dsh-experimental-team-mode-profile/model-experience/team-policy-and-tools/what-the-model-sees:
+  en: 66a0f7415a2b7344
+  zh: bbe654f13b5dbd2b
+/deepseek-ai-dsh-experimental-team-mode-profile/model-experience/team-policy-and-tools/token-effect:
+  en: c6b9a86bb24e9848
+  zh: 0e30209d4954edb4
+/deepseek-ai-dsh-experimental-team-mode-profile/model-experience/team-policy-and-tools/kv-cache-effect:
+  en: 102ff4b9c72951ac
+  zh: d94059ab443e3297
+/deepseek-ai-dsh-experimental-team-mode-profile/known-limitations-and-deferred-work:
+  en: 9bfc841bdbb674b5
+  zh: fac158c1bfe7facc
+/deepseek-ai-dsh-experimental-team-mode-profile/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: bd8a8936229e035e

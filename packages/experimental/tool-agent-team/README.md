@@ -47,6 +47,7 @@ The smallest addition to an existing composition is the two-package fragment fro
 |---|---|---|
 | `freshProvider` | `spawn` | Provider that starts fresh teammates |
 | `forkProvider` | `fork` | Provider that starts fork teammates |
+| `externalProvider` | unset | LLM route of external coding agents, such as `acp` from [`dsh-experimental-llm-acp`](../llm-acp/README.md); enables `spawn_teammate`'s `harness` parameter |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-tool-agent-team) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -56,7 +57,7 @@ Try it by asking the Lead model: "create a teammate named reviewer to check the 
 
 The nine tools group into four capabilities:
 
-- **Create a teammate** — `spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it.
+- **Create a teammate** — `spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it. With `externalProvider` configured, `harness` (for example `claude` or `codex/gpt-5`) creates an external coding agent instead: a fresh teammate on that LLM route with no Team tools, whose replies the Team forwards to the Lead. An unknown harness is rejected before the teammate is created.
 - **Send messages** — `send_message` steers a running member at its nearest step boundary, starts or resumes an inactive member.
 - **See and wait** — `list_agents` returns each member’s `target` and availability; `wait_agent` waits for the next team change; `interrupt_agent` stops a teammate's current turn (Lead only).
 - **Manage the task board** — `team_task_create`, `team_task_list`, `team_task_get`, and `team_task_update` add, browse, read, and update shared tasks.
@@ -99,7 +100,7 @@ One `team:policy` section on the member scope states the shared coordination rul
 
 ### Scoped registration and teardown
 
-`maybeInstall` runs for every live Agent and subscribes to `agent/created`; it skips Agents without Team membership. Disposal of an Agent runs the installed disposer, and plugin HMR disposes every installed scope before reinstall. Each disposer unwinds registrations in reverse order, so a failed install cannot leave a partial scope.
+`maybeInstall` runs for every live Agent and subscribes to `agent/created`; it skips Agents without Team membership and teammates whose tool scope hides `send_message`. When the plugin runs inside an agent preset's group that isolates `agentTeams`, it also follows `agent-preset/selected`: an Agent receives the tools only while `agentPresets.serviceFor(agent, 'agentTeams')` finds a Team service, so selecting the preset for a blank Session installs them and selecting another preset removes them. Disposal of an Agent runs the installed disposer, and plugin HMR disposes every installed scope before reinstall. Each disposer unwinds registrations in reverse order, so a failed install cannot leave a partial scope.
 
 </details>
 
@@ -124,7 +125,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-One shared system policy states the explicit-delegation requirement, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, Steer delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. All nine Team schemas are identical for Leads and teammates; execution enforces Lead-only operations. `spawn_teammate` prefixes its initial user message with `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`, followed by a blank line and the task. The prefix contains no Team id and works when runtime context is disabled. Forks inherit history without an additional Lead identity message.
+One shared system policy states the explicit-delegation requirement, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, Steer delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. All nine Team schemas are identical for Leads and teammates; execution enforces Lead-only operations. `spawn_teammate` prefixes its initial user message with `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`, followed by a blank line and the task. The prefix contains no Team id and works when runtime context is disabled. Forks inherit history without an additional Lead identity message. With `externalProvider` configured, the policy gains a paragraph telling the Lead that the session is in Team mode, that the user chose it to have work delegated, and that harness teammates work in their own worktree and branch, have no Team tools, and report at the end of each turn; their initial message instead starts with a reminder that names them, asks them to commit in their worktree, and asks for the branch and checks in each final reply.
 
 #### Token effect
 

@@ -139,7 +139,7 @@ export class TeamRoster {
     }]
     for (const member of state.members) {
       const live = this.ctx.agents.get(member.id)
-      const model = live?.options.model ?? root.options.model
+      const model = live?.options.model ?? member.model ?? root.options.model
       result.push({
         id: member.id,
         name: member.name,
@@ -263,6 +263,7 @@ export class TeamRoster {
       description,
       provider: requiredText(request.provider, 'provider', 200),
       context: request.context,
+      ...request.agentOptions?.model === undefined ? {} : { model: request.agentOptions.model },
       phase: 'provisioning',
     }
 
@@ -286,6 +287,8 @@ export class TeamRoster {
         request: {
           prompt: request.prompt,
           parent: root,
+          ...request.agentOptions === undefined ? {} : { agentOptions: request.agentOptions },
+          ...request.toolFilter === undefined ? {} : { toolFilter: request.toolFilter },
         },
         signal,
       })
@@ -482,6 +485,20 @@ export class TeamRoster {
   }
 
   /** Whether a Session's own suffix identifies a provider-owned subagent child. */
+  /**
+   * Whether a teammate's tool scope hides `send_message`, so the Team forwards its turn replies to the Lead.
+   * @param agent - exact live teammate Agent.
+   * @returns true when the teammate cannot message the Lead itself.
+   */
+  cannotMessageLead(agent: Agent): boolean {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    const descriptor = foldSubagentDescriptor(agent.session.snapshotEvents(agent.session.inheritedEventCount))
+    // `send_message` is Team-scoped, so only an allow list can hide it; `restrict()` rejects denying it.
+    /* v8 ignore next -- rostered teammates always carry a continuable descriptor. */
+    const allow = descriptor?.mode === 'continuable' ? descriptor.toolFilter?.allow : undefined
+    return allow !== undefined && !allow.includes('send_message')
+  }
+
   private subagentDescriptor(agent: Agent): boolean {
     // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     return foldSubagentDescriptor(agent.session.snapshotEvents(agent.session.inheritedEventCount)) !== undefined

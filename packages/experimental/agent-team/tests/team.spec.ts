@@ -878,6 +878,67 @@ describe('Team shared task DAG', () => {
 })
 
 describe('Team mailbox and waiting', () => {
+  it('forwards each turn reply of a teammate that cannot call send_message to the Lead', async () => {
+    const { ctx, lead } = await setup([textResponse('external done'), textResponse('lead ack')])
+    const { member } = await ctx.agentTeams.spawnTeammate(lead, {
+      name: 'external',
+      description: 'external responsibility',
+      prompt: content('external initial'),
+      context: 'fresh',
+      provider: 'spawn',
+      toolFilter: { allow: [] },
+      signal: SIGNAL,
+    })
+    await vi.waitFor(() => {
+      const forwarded = lead.session.snapshotEvents().filter(event =>
+        event.type === 'user/message' && event.data.source.kind === 'team-message')
+      expect(forwarded).toHaveLength(1)
+      expect(JSON.stringify(forwarded[0])).toContain('external done')
+      expect(forwarded[0]).toMatchObject({ data: { source: { senderId: member.id, senderName: 'external' } } })
+    }, { timeout: 5_000 })
+  })
+
+  it('reports a forwarded turn without text and drops a reply the mailbox rejects', { timeout: 20_000 }, async () => {
+    const empty = await setup([[{ type: 'finish', reason: { kind: 'error', failure: { message: 'model failed', code: 'BAD_REQUEST' } } }], textResponse('lead ack')])
+    await empty.ctx.agentTeams.spawnTeammate(empty.lead, {
+      name: 'quiet',
+      description: 'quiet responsibility',
+      prompt: content('quiet initial'),
+      context: 'fresh',
+      provider: 'spawn',
+      toolFilter: { allow: [] },
+      signal: SIGNAL,
+    })
+    await vi.waitFor(() => {
+      expect(JSON.stringify(empty.lead.session.snapshotEvents())).toContain('(turn ended without a reply: error: model failed)')
+    }, { timeout: 5_000 })
+
+    const tiny = await setup([textResponse('a reply longer than the mailbox allows')], { maxMessageBytes: 40 })
+    const warnings: string[] = []
+    tiny.ctx.logger.warn = ((value: unknown) => { warnings.push(String(value)) }) as typeof tiny.ctx.logger.warn
+    const { member } = await tiny.ctx.agentTeams.spawnTeammate(tiny.lead, {
+      name: 'verbose',
+      description: 'verbose responsibility',
+      prompt: content('x'),
+      context: 'fresh',
+      provider: 'spawn',
+      toolFilter: { allow: [] },
+      signal: SIGNAL,
+    })
+    await vi.waitFor(() => {
+      expect(warnings.some(warning => warning.includes(`Team reply from "${member.id}" could not be forwarded to the Lead`))).toBe(true)
+    }, { timeout: 5_000 })
+  })
+
+  it('does not forward turn replies of a teammate that has send_message', async () => {
+    const { ctx, lead } = await setup([textResponse('regular done')])
+    const { member } = await spawn(ctx, lead, 'regular')
+    await waitNoAgent(ctx, member.id)
+    expect(lead.session.snapshotEvents().some(event =>
+      event.type === 'user/message' && event.data.source.kind === 'team-message')).toBe(false)
+    expect(durable(lead).pendingMessages).toEqual([])
+  })
+
   it('steers a message addressed to the Lead and checkpoints its receipt', async () => {
     const { ctx, lead } = await setup(['hang'])
     const message: TeamMessageSnapshot = {

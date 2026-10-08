@@ -719,6 +719,77 @@ describe('dsh-tool-team', () => {
     expect(toolTeam.inject).toEqual(['agents', 'agentTeams', 'tools', 'systemPrompt'])
   })
 
+  it('runs a harness teammate on the external route without Team tools and forwards its reply', async () => {
+    const { ctx, lead, fiber } = await setup([textResponse('lead ack')])
+    await fiber.dispose()
+    const external = new class extends MockAdapter {
+      override listModels() {
+        return Promise.resolve([{ provider: 'ext', id: 'claude', name: 'claude' }])
+      }
+    }([textResponse('branch dsh-team/x ready')])
+    ctx.llm.registerAdapter(['ext'], external)
+    await ctx.plugin(toolTeam, { externalProvider: 'ext' })
+
+    const unknown = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'nobody', description: 'unknown harness', prompt: 'go', harness: 'gemini',
+    })
+    expect(unknown.isError).toBe(true)
+    expect(text(unknown)).toContain('unknown harness "gemini"; available: claude')
+
+    const forked = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'forked', description: 'forked external', prompt: 'go', harness: 'claude', context: 'fork',
+    })
+    expect(forked.isError).toBe(true)
+    expect(text(forked)).toContain('an external teammate cannot fork Lead history')
+
+    const result = await execute(ctx, lead, 'spawn_teammate', {
+      name: 'claude-dev', description: 'external developer', prompt: 'implement the parser', harness: 'claude/opus',
+    })
+    expect(result.isError).toBe(false)
+    await vi.waitFor(() => { expect(external.requests).toHaveLength(1) }, { timeout: 5_000 })
+    const request = external.requests[0]!
+    expect(request.model).toBe('claude/opus')
+    expect(request.tools ?? []).toEqual([])
+    expect(JSON.stringify(request.messages)).toContain('You are \\"claude-dev\\", a developer on a team')
+    expect(JSON.stringify(request.messages)).toContain('implement the parser')
+    await vi.waitFor(() => {
+      expect(JSON.stringify(lead.session.snapshotEvents())).toContain('branch dsh-team/x ready')
+    }, { timeout: 5_000 })
+    expect(ctx.agentTeams.listMembers(lead)[1]).toMatchObject({ name: 'claude-dev', model: 'claude/opus' })
+  })
+
+  it('installs Team tools only for Agents bound to the preset that isolates the Team service', async () => {
+    const ctx = new Context()
+    contexts.add(ctx)
+    await mountAgentLoopTestDependencies(ctx)
+    const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-tool-team-preset-'))
+    roots.push(storageRoot)
+    await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
+    await ctx.plugin(TestSessionQuery)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentService)
+    await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+    const bound = new Set<string>()
+    ctx.provide('agentPresets', {
+      serviceFor: (agent: { ctx: Context }) => bound.has((agent as Agent).id) ? {} : undefined,
+    } as Partial<Context['agentPresets']> as Context['agentPresets'])
+    const preset = ctx.isolate('agentTeams')
+    await preset.plugin(TeamService)
+    await preset.plugin(toolTeam)
+    ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
+    const lead = await ctx.agentLoop.create(SessionId('preset-lead'), { provider: 'mock', model: 'mock' })
+    const has = (): boolean => ctx.tools.get('spawn_teammate', scopeOf(lead.ctx)) !== undefined
+
+    expect(has()).toBe(false)
+    bound.add(lead.id)
+    ctx.emit('agent-preset/selected', lead.id, 'team')
+    expect(has()).toBe(true)
+    ctx.emit('agent-preset/selected', SessionId('missing-session'), 'team')
+    bound.delete(lead.id)
+    ctx.emit('agent-preset/selected', lead.id, 'standard')
+    expect(has()).toBe(false)
+  })
+
   it('uses configured fresh and fork provider names', async () => {
     const { ctx, lead, fiber } = await setup([textResponse('custom')])
     await fiber.dispose()

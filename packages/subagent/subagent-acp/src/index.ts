@@ -204,3 +204,5 @@ export function apply(ctx: Context, config: Config): void {
     : { ...resolved, cwd: assertUsableCwd('config cwd', resolve(resolved.cwd)) }
   ctx.subagents.registerProvider(new AcpProvider(validated.providerName, ctx, validated))
 }
+
+export { DEFAULT_DISPOSE_EOF_GRACE_MS, DEFAULT_DISPOSE_GRACE_MS, disposeAcpChild } from './run.ts'

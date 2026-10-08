@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "团队模式",
+    "description": "添加团队模式：由 Lead 智能体向 Claude Code、Codex、OpenCode 等外部编码智能体分派任务，每个智能体在自己的分支上使用自己的模型工作。"
+  }
+}

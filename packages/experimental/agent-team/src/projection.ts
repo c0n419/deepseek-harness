@@ -70,6 +70,7 @@ const teamMemberSnapshotSchema = z.object({
   description: z.string(),
   provider: z.string(),
   context: z.enum(['fresh', 'fork']),
+  model: z.string().optional(),
   phase: z.enum(['provisioning', 'active', 'failed']),
   error: z.string().optional(),
 }).strict() as z.ZodType<TeamMemberSnapshot>

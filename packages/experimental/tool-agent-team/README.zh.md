@@ -47,6 +47,7 @@ kind: "package-reference"
 |---|---|---|
 | `freshProvider` | `spawn` | 启动 fresh teammate 的提供方 |
 | `forkProvider` | `fork` | 启动 fork teammate 的提供方 |
+| `externalProvider` | 未设置 | 外部编码智能体的 LLM 路由，例如 [`dsh-experimental-llm-acp`](../llm-acp/README.zh.md) 提供的 `acp`；启用 `spawn_teammate` 的 `harness` 参数 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-tool-agent-team)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
@@ -56,7 +57,7 @@ kind: "package-reference"
 
 九个工具分为四类能力：
 
-- **创建 teammate**——`spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
+- **创建 teammate**——`spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。配置了 `externalProvider` 时，`harness`（例如 `claude` 或 `codex/gpt-5`）会改为创建外部编码智能体：一个运行在该 LLM 路由上、没有 Team 工具的 fresh teammate，团队会把它的回复转发给 Lead。未知的 harness 会在创建 teammate 之前被拒绝。
 - **发送消息**——`send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
 - **查看与等待**——`list_agents` 返回各成员的 `target` 与可用状态；`wait_agent` 等待下一次团队变化；`interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
 - **管理任务板**——`team_task_create`、`team_task_list`、`team_task_get` 与 `team_task_update` 添加、浏览、读取与更新共享任务。
@@ -99,7 +100,7 @@ member scope 上的一个 `team:policy` 段落说明共享的协作规则；固�
 
 ### 按作用域注册与拆除
 
-`maybeInstall` 对每个 live Agent 运行，并订阅 `agent/created`；它跳过没有 Team 成员关系的 Agent。Agent 的 dispose（资源释放）会运行已安装的 disposer，插件 HMR（热模块替换）会在重新安装前对每个已安装的 scope 执行 dispose。每个 disposer 按逆序撤销注册，因此失败的安装不会留下残缺 scope。
+`maybeInstall` 对每个 live Agent 运行，并订阅 `agent/created`；它跳过没有 Team 成员关系的 Agent，以及工具范围中没有 `send_message` 的 teammate。当插件运行在隔离 `agentTeams` 的 agent 预设组内时，它还会跟随 `agent-preset/selected`：只有当 `agentPresets.serviceFor(agent, 'agentTeams')` 能找到 Team 服务时，Agent 才会获得这些工具，因此为空白 Session 选择该预设会安装工具，选择其他预设会移除工具。Agent 的 dispose（资源释放）会运行已安装的 disposer，插件 HMR（热模块替换）会在重新安装前对每个已安装的 scope 执行 dispose。每个 disposer 按逆序撤销注册，因此失败的安装不会留下残缺 scope。
 
 </details>
 
@@ -124,7 +125,7 @@ member scope 上的一个 `team:policy` 段落说明共享的协作规则；固�
 
 #### 模型看到什么
 
-一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部九个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
+一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部九个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use send_message({ target: "lead", message: "..." }).\nTo message another teammate, use send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。配置了 `externalProvider` 时，策略会增加一段说明，告诉 Lead：会话处于团队模式，用户选择该模式是为了委派工作；harness teammate 在自己的 worktree 和分支中工作，没有 Team 工具，并在每个轮次结束时汇报；它们的初始消息则以另一段提醒开头，其中写明它们的名字，要求它们在自己的 worktree 中提交，并在每次最终回复中给出分支名和所运行的检查。
 
 #### Token 影响
 

@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TeamTaskId } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { InferValue, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 
@@ -19,12 +20,22 @@ export interface Config {
   readonly freshProvider?: string
   /** Continuable-subagent provider used for completed-prefix fork teammates. */
   readonly forkProvider?: string
+  /**
+   * LLM provider route whose models are external coding agents (`dsh-experimental-llm-acp`).
+   * When set, `spawn_teammate` accepts `harness` and runs that teammate on the route with no Team tools;
+   * its turn replies are forwarded to the Lead.
+   */
+  readonly externalProvider?: string
 }
+
+/** Config after defaults; `externalProvider` stays optional because absence disables external teammates. */
+type ResolvedConfig = Required<Omit<Config, 'externalProvider'>> & Pick<Config, 'externalProvider'>
 
 /** Loader schema for the opt-in Team tool plugin. */
 export const Config: z<Config> = z.object({
   freshProvider: z.string().default('spawn'),
   forkProvider: z.string().default('fork'),
+  externalProvider: z.string(),
 })
 
 /** Model-facing collaboration guidance shared by Lead and teammates. */
@@ -35,6 +46,18 @@ The Team Lead and all teammates share the same working directory and filesystem.
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
 Use the target returned by spawn_teammate or list_agents for send_message and interrupt_agent, or as owner when assigning or filtering shared tasks. send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before wait_agent, use list_agents and make sure another required member is running or provisioning; use send_message first when the required member is inactive. wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`
+
+/** Lead guidance added when external teammates are available. */
+const EXTERNAL_POLICY = 'This session is in Team mode: you are the Team Lead of a software team, and the user chose this mode to have work delegated. Split work that has separable parts into tasks, give each task to a teammate, and keep coordination, review, and merging for yourself. A teammate created with harness is a separate external coding agent (for example Claude Code, Codex, or OpenCode) with its own context and model. It works in its own git worktree on its own branch, not in your working directory, and has no Team tools: it cannot use send_message, list_agents, or the task board. Its reply at the end of each of its turns is delivered to you as a message from it. Give it complete, self-contained instructions, send follow-ups with send_message, track its work on the task board yourself, and review and merge its branch before reporting the result.'
+
+/** First-prompt framing for an external teammate, which sees only text. */
+function externalReminder(name: string): string {
+  return `<system-reminder>
+You are "${name}", a developer on a team coordinated by a Team Lead. Work only in your current working directory, which is a dedicated git worktree on its own branch. Commit your changes there. Your final reply in each turn is delivered to the Team Lead: state what you changed, the branch name, and the checks you ran.
+</system-reminder>
+
+`
+}
 
 const ACTIVE_WAIT_STATUSES: ReadonlySet<TeamMemberView['status']> = new Set(['running', 'provisioning'])
 const NO_ACTIVE_PEER_MESSAGE = 'No other Team member is running or provisioning. wait_agent cannot make progress or wake inactive teammates. Re-list with list_agents and team_task_list, then use send_message to wake each required inactive teammate before waiting again.'
@@ -160,8 +183,20 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
   return agent
 }
 
+/** Reject an unknown external harness before a teammate is created. */
+async function assertHarness(ctx: Context, provider: string, harness: string): Promise<void> {
+  const name = harness.replace(/\/.*$/su, '')
+  const llm = ctx.get('llm')
+  /* v8 ignore next -- every composition that runs Agents provides the LLM service. */
+  if (llm === undefined) throw new Error('external teammates need the LLM service')
+  const available = (await llm.listModels(provider)).map(model => model.id)
+  if (!available.includes(name)) {
+    throw new Error(`unknown harness "${name}"; available: ${available.join(', ')}`)
+  }
+}
+
 /** Register the complete Team tool set in one exact Agent scope. */
-function install(agent: Agent, ctx: Context, config: Required<Config>): () => void {
+function install(agent: Agent, ctx: Context, config: ResolvedConfig): () => void {
   const scoped = agent.ctx
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
@@ -169,7 +204,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
     register(scoped.systemPrompt.section({
       name: 'team:policy',
       order: scoped.systemPrompt.getSectionOrder('TEAM_POLICY'),
-      text: POLICY,
+      text: config.externalProvider === undefined ? POLICY : `${POLICY}\n\n${EXTERNAL_POLICY}`,
     }))
 
     register(scoped.tools.register(defineTool({
@@ -184,11 +219,33 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
           enum: ['fresh', 'fork'],
           description: 'fresh starts without Lead history; fork inherits completed Lead turns. Defaults to fresh.',
         },
+        ...config.externalProvider === undefined ? {} : {
+          harness: {
+            type: 'string',
+            description: 'Run this teammate as an external coding agent: a harness name such as claude, codex, or opencode, optionally followed by /<model>, for example claude/opus. Requires context fresh. Omit for a regular teammate.',
+          },
+        },
       },
       output: jsonOutput(SPAWN_VALUE_SCHEMA),
       async execute(args, exec) {
         const agent = callingAgent(exec.agent, 'spawn_teammate')
         const context = args.context ?? 'fresh'
+        const harness = 'harness' in args && typeof args.harness === 'string' ? args.harness.trim() : undefined
+        if (harness !== undefined && config.externalProvider !== undefined) {
+          if (context !== 'fresh') throw new Error('an external teammate cannot fork Lead history; use context fresh')
+          await assertHarness(ctx, config.externalProvider, harness)
+          const result = await ctx.agentTeams.spawnTeammate(agent, {
+            name: args.name,
+            description: args.description,
+            prompt: [{ type: 'text', text: externalReminder(args.name.trim()) }, { type: 'text', text: args.prompt }],
+            context,
+            provider: config.freshProvider,
+            agentOptions: { provider: config.externalProvider, model: harness },
+            toolFilter: { allow: [] },
+            signal: exec.signal,
+          })
+          return { member: modelMember(result.member) }
+        }
         const result = await ctx.agentTeams.spawnTeammate(agent, {
           name: args.name,
           description: args.description,
@@ -400,21 +457,38 @@ To message another teammate, use send_message({ target: "<teammate name>", messa
 
 /** Install Team tools in every live or subsequently published Team member scope. */
 export function apply(ctx: Context, config: Config = {}): void {
-  const resolved: Required<Config> = {
+  const resolved: ResolvedConfig = {
     freshProvider: config.freshProvider ?? 'spawn',
     forkProvider: config.forkProvider ?? 'fork',
+    ...config.externalProvider === undefined ? {} : { externalProvider: config.externalProvider },
   }
   const installed = new Map<Agent, () => void>()
+  // Inside an agent preset's isolated group the Team service is invisible at the root; only
+  // Agents whose preset supplies a Team service may receive these tools. Service accessors
+  // are per-context proxies, so presence is compared rather than identity.
+  const presetScoped = ctx.root.get('agentTeams') === undefined
+  const belongs = (agent: Agent): boolean =>
+    !presetScoped || ctx.get('agentPresets')?.serviceFor(agent, 'agentTeams') !== undefined
+  const uninstall = (agent: Agent): void => {
+    installed.get(agent)?.()
+    installed.delete(agent)
+  }
   const maybeInstall = (agent: Agent): void => {
-    if (installed.has(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
+    if (installed.has(agent) || !belongs(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return
+    // A teammate whose tool scope hides send_message gets no Team tools; the Team forwards its replies.
+    if (ctx.agentTeams.forwardsReplies(agent)) return
     installed.set(agent, install(agent, ctx, resolved))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })
-  ctx.on('agent/disposed', ({ agent }) => {
-    installed.get(agent)?.()
-    installed.delete(agent)
+  // A blank Session can change preset before its first turn; that rebinds an existing Agent.
+  ctx.on('agent-preset/selected', (sessionId) => {
+    const agent = ctx.agents.get(sessionId)
+    if (agent === undefined) return
+    if (belongs(agent)) maybeInstall(agent)
+    else uninstall(agent)
   })
+  ctx.on('agent/disposed', ({ agent }) => { uninstall(agent) })
   ctx.effect(() => () => {
     for (const dispose of installed.values()) dispose()
     installed.clear()

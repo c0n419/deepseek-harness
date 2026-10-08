@@ -231,6 +231,16 @@ export class TeamService extends Service {
     return this.roster.tryMembership(agent)
   }
 
+  /**
+   * Whether a teammate's tool scope hides `send_message`. Such a teammate gets no Team tools,
+   * and the Team delivers the text of each of its finished turns to the Lead as a message from it.
+   * @param agent - exact live teammate Agent.
+   * @returns true for a teammate whose replies the Team forwards.
+   */
+  forwardsReplies(agent: Agent): boolean {
+    return this.roster.tryMembership(agent)?.role === 'teammate' && this.roster.cannotMessageLead(agent)
+  }
+
   /** Queue one contained recovery pass after publication has unwound. */
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {

@@ -50,6 +50,8 @@ export interface TeamMemberSnapshot {
   readonly description: string
   readonly provider: string
   readonly context: 'fresh' | 'fork'
+  /** Model requested for the teammate at creation; absent when it inherits the Lead's model. */
+  readonly model?: string
   readonly phase: TeamMemberPhase
   readonly error?: string
 }
@@ -169,6 +171,10 @@ export interface SpawnTeammateRequest {
   readonly prompt: ContentBlock[]
   readonly context: 'fresh' | 'fork'
   readonly provider: string
+  /** Optional child model route; the continuable provider must support `agentOptions`. */
+  readonly agentOptions?: { readonly provider: string; readonly model: string }
+  /** Optional child tool scope; a scope hiding `send_message` makes the Team forward the teammate's turn replies to the Lead. */
+  readonly toolFilter?: { readonly allow?: readonly string[]; readonly deny?: readonly string[] }
   readonly signal: AbortSignal
 }
 

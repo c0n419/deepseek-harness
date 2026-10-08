@@ -64,6 +64,8 @@ The roster shows every member with its role (`lead` or `teammate`) and current s
 
 Only the Lead can create teammates or interrupt them.
 
+A creation request can also set the teammate's model route and tool scope. A teammate whose tool scope hides `send_message` cannot report by itself, so the Team sends the text of each of its finished turns to the Lead as a message from that teammate, or, when the turn produced no text, a note naming how it ended, with the error message of a failed turn. Team mode uses this for external coding agents. The roster keeps a requested model, so `list_agents` shows it while the teammate is not loaded.
+
 ### Messages between teammates
 
 Any member can send a message to any other member or to the Lead. A live member receives it immediately; an offline member's messages queue and arrive when it resumes. Messages are never lost and never delivered twice.

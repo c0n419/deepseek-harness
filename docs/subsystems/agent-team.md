@@ -16,6 +16,8 @@ interface TeamMemberSnapshot {
   readonly description: string
   readonly provider: string
   readonly context: 'fresh' | 'fork'
+  /** Model requested for the teammate at creation; absent when it inherits the Lead's model. */
+  readonly model?: string
   readonly phase: TeamMemberPhase
   readonly error?: string
 }

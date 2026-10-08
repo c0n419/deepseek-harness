@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-08-external-coding-agent-teammates.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-08-external-coding-agent-teammates.md
+/agent-note-external-coding-agents-as-agent-teams-teammates:
+  en: a874b566c7198d48
+  zh: 33f456b2faae6a5c
+/agent-note-external-coding-agents-as-agent-teams-teammates/problem:
+  en: 34ec8dddb094d2e7
+  zh: 4d37578b29335a3c
+/agent-note-external-coding-agents-as-agent-teams-teammates/decision:
+  en: eb4e732f576acaea
+  zh: 973df8c6d1110e31
+/agent-note-external-coding-agents-as-agent-teams-teammates/alternatives-considered:
+  en: 0bac50ecf4bc5c64
+  zh: 4a44f7cd6e4da0e0
+/agent-note-external-coding-agents-as-agent-teams-teammates/consequences:
+  en: dcb4e8bd9f8e894a
+  zh: 8c7792ede6caefd4

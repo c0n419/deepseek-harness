@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Team mode",
+    "description": "Add Team mode: a Lead agent that gives tasks to external coding agents such as Claude Code, Codex, and OpenCode, each working on its own branch with its own model."
+  }
+}

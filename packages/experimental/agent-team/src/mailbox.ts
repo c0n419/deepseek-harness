@@ -28,6 +28,8 @@ export class TeamMailbox {
   private readonly dispatchTails = new Map<SessionId, Promise<void>>()
   private readonly inFlightMessages = new Set<TeamMessageId>()
   private readonly inFlightDispatches = new Set<Promise<unknown>>()
+  /** Text of each Session's latest assistant message, consumed at its turn end. */
+  private readonly lastReplies = new Map<SessionId, string>()
 
   /**
    * @param ctx - Team service context with Agent, Session, persistence, and subagent services.
@@ -67,7 +69,18 @@ export class TeamMailbox {
    * @param event - newly appended Session event.
    */
   observeSessionEvent(session: Session, event: SessionEvent): void {
-    if (this.lifecycle.disposed || event.type !== 'user/message' || event.data.source.kind !== 'team-message') return
+    if (this.lifecycle.disposed) return
+    if (event.type === 'assistant/message') {
+      this.lastReplies.set(session.header.id, event.data.message.content
+        .flatMap(block => block.type === 'text' ? [block.text] : []).join(''))
+      return
+    }
+    if (event.type === 'turn/end') {
+      const reason = event.data.reason
+      this.forwardReply(session.header.id, reason.kind === 'error' ? `error: ${reason.error.message}` : reason.kind)
+      return
+    }
+    if (event.type !== 'user/message' || event.data.source.kind !== 'team-message') return
     const source = event.data.source
     const acknowledgement = Promise.resolve().then(async () => {
       const root = this.ctx.agents.get(brandString<SessionId>(source.teamId))
@@ -103,6 +116,23 @@ export class TeamMailbox {
    */
   pendingDispatches(): readonly Promise<unknown>[] {
     return [...this.inFlightDispatches]
+  }
+
+  /**
+   * Send a finished turn's reply to the Lead for a teammate that cannot call `send_message`.
+   * @param id - Session whose turn ended.
+   * @param reason - turn end kind, with the failure message for an error, reported when the turn produced no text.
+   */
+  private forwardReply(id: SessionId, reason: string): void {
+    const reply = this.lastReplies.get(id)
+    this.lastReplies.delete(id)
+    const agent = this.ctx.agents.get(id)
+    if (agent === undefined || this.roster.tryMembership(agent)?.role !== 'teammate' || !this.roster.cannotMessageLead(agent)) return
+    const text = reply === undefined || reply === '' ? `(turn ended without a reply: ${reason})` : reply
+    this.send(agent, { target: 'lead', content: [{ type: 'text', text }], signal: this.lifecycle.signal })
+      .catch((error: unknown) => {
+        this.ctx.logger.warn(`Team reply from "${id}" could not be forwarded to the Lead: ${errorMessage(error)}`)
+      })
   }
 
   /** Queue and dispatch one mailbox item admitted before the disposal cutoff. */
