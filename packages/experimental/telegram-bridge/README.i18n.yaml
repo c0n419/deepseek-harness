@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/telegram-bridge/README.md
+/:
+  en: bb27758279dfc562
+  zh: 4960c0087284181f
+/deepseek-ai-dsh-experimental-telegram-bridge:
+  en: 17e0eb1bf8ac49ce
+  zh: 7bacc558090c5d40
+/deepseek-ai-dsh-experimental-telegram-bridge/summary:
+  en: 1c26d9dbbf386d96
+  zh: aa4ba2ffa01af967
+/deepseek-ai-dsh-experimental-telegram-bridge/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: a134331a31395608
+/deepseek-ai-dsh-experimental-telegram-bridge/use-this-package:
+  en: bbff250eba0f1b89
+  zh: b20a47f82d8ab6e0
+/deepseek-ai-dsh-experimental-telegram-bridge/use-this-package/prepare-telegram:
+  en: 2a7f116e13c44149
+  zh: f124a8c7e518d6c8
+/deepseek-ai-dsh-experimental-telegram-bridge/use-this-package/configuration:
+  en: eac3fd880842bc2c
+  zh: 088093dd481d8218
+/deepseek-ai-dsh-experimental-telegram-bridge/use-this-package/what-arrives-in-telegram:
+  en: cf6d612ff33cfe83
+  zh: d9a58f4d0e8eae3f
+/deepseek-ai-dsh-experimental-telegram-bridge/understand-the-implementation:
+  en: e27c251a0dc9540a
+  zh: b783f41f8b588770
+/deepseek-ai-dsh-experimental-telegram-bridge/further-exploration:
+  en: 1af89f13a2456960
+  zh: 3df01ba47bd9082d
+/deepseek-ai-dsh-experimental-telegram-bridge/model-experience:
+  en: b182ffeab895c504
+  zh: 503e6624d67885e8
+/deepseek-ai-dsh-experimental-telegram-bridge/model-experience/kv-cache-effect:
+  en: b9bc5a81e3df88bb
+  zh: a575c224bc0983b1
+/deepseek-ai-dsh-experimental-telegram-bridge/known-limitations-and-deferred-work:
+  en: 06b21d3d076d8d89
+  zh: 84722a5a6982c627
+/deepseek-ai-dsh-experimental-telegram-bridge/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: bd8a8936229e035e

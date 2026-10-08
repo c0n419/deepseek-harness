@@ -1265,6 +1265,39 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-speech-to-text-sensevoice -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-telegram-bridge -->
+<a id="deepseek-aidsh-experimental-telegram-bridge"></a>
+
+## `@deepseek-ai/dsh-experimental-telegram-bridge`
+
+- `inject`: `storageDomain`
+- `source`: [`packages/experimental/telegram-bridge/src/index.ts:28`](../packages/experimental/telegram-bridge/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration. */
+export interface Config {
+  /** Bot token; falls back to `$TELEGRAM_BOT_TOKEN`. */
+  botToken?: string
+  /** Forum supergroup chat id that holds one topic per root Session. */
+  chatId: number
+  /** Telegram user ids whose commands the bridge accepts. */
+  allowedUserIds: number[]
+  /** Bot API base URL. */
+  apiBaseUrl: string
+  /** Web UI URL linked from each status card. */
+  webUrl?: string
+  /** Minimum milliseconds between two Telegram writes; group chats allow about 20 messages per minute. */
+  sendIntervalMs: number
+  /** Milliseconds between status-card refreshes. */
+  cardIntervalMs: number
+  /** Maximum characters of agent text quoted in a notification. */
+  excerptChars: number
+  /** Telegram long-poll timeout in seconds. */
+  pollTimeoutSeconds: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-telegram-bridge -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-agent-team -->
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 

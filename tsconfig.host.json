@@ -452,6 +452,7 @@
     { "path": "./packages/experimental/inspector-profile" },
     { "path": "./packages/experimental/llm-acp" },
     { "path": "./packages/experimental/team-mode-profile" },
+    { "path": "./packages/experimental/telegram-bridge" },
     { "path": "./packages/experimental/tool-agent-team" },
     { "path": "./packages/workflow/workflow" },
     { "path": "./packages/workflow/workflow-ptc" },

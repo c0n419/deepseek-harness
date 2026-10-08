@@ -70,6 +70,7 @@ describe('release families', () => {
       '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice',
       '@deepseek-ai/dsh-experimental-speech-to-text',
       '@deepseek-ai/dsh-experimental-team-mode-profile',
+      '@deepseek-ai/dsh-experimental-telegram-bridge',
       '@deepseek-ai/dsh-experimental-tool-agent-team',
       '@deepseek-ai/dsh-experimental-voice-input-bundle',
       '@deepseek-ai/dsh-experimental-webworker-packer',
