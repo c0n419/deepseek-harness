@@ -85,14 +85,14 @@ describe('SessionTracker', () => {
     expect(t.observe(child, { type: 'turn/end', data: { reason: { kind: 'error' } } })[0]?.text).toBe('❌ <b>mate-2</b> hata ile bitti: ')
   })
 
-  it('notifies failed teammates, approvals, and questions', () => {
+  it('notifies failed teammates and questions, leaving approvals to the bridge', () => {
     const t = tracker()
     expect(t.observe(lead, { type: 'team/member', data: { member: { id: 'm', name: 'dev', phase: 'failed', error: 'git worktree add failed' } } }))
       .toEqual([{ rootId: 'lead-1', loud: true, text: '❌ <b>dev</b> başlatılamadı: git worktree add failed' }])
     expect(t.observe(lead, { type: 'team/member', data: { member: { id: 'n', phase: 'failed' } } })[0]?.text).toBe('❌ <b>n</b> başlatılamadı: ')
-    expect(t.observe(lead, { type: 'approval/asked', data: { toolName: 'bash', reason: 'rm -rf build' } })[0])
-      .toEqual({ rootId: 'lead-1', loud: true, text: '🔔 <b>lead-1</b> onay bekliyor: <code>bash</code> — rm -rf build\nWeb arayüzünden yanıtlayın.' })
-    expect(t.observe(lead, { type: 'approval/asked', data: {} })[0]?.text).toContain('<code>?</code>\n')
+    expect(t.observe(lead, { type: 'approval/asked', data: { toolName: 'bash' } })).toEqual([])
+    expect(t.nameOf('m')).toBe('dev')
+    expect(t.nameOf('never-seen-id')).toBe('never-se')
     const question = JSON.stringify({ questions: [{ question: 'Hangisi?' }] })
     expect(t.observe(lead, { type: 'tool/call', data: { name: 'ask_user_question', arguments: question } })[0]?.text)
       .toBe('❓ <b>lead-1</b> soru soruyor: Hangisi?')

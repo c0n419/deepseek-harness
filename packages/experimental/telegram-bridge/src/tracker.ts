@@ -180,15 +180,6 @@ export class SessionTracker {
         }
         break
       }
-      case 'approval/asked': {
-        const reason = text(data.reason)
-        notifications.push({
-          rootId,
-          loud: true,
-          text: `🔔 <b>${escapeHtml(this.label(node))}</b> onay bekliyor: <code>${escapeHtml(text(data.toolName) ?? '?')}</code>${reason === undefined ? '' : ` — ${escapeHtml(excerpt(reason, this.options.excerptChars))}`}\nWeb arayüzünden yanıtlayın.`,
-        })
-        break
-      }
       case 'tool/call':
         if (data.name === 'ask_user_question') {
           notifications.push({ rootId, loud: true, text: `❓ <b>${escapeHtml(this.label(node))}</b> soru soruyor: ${escapeHtml(excerpt(firstQuestion(text(data.arguments)), this.options.excerptChars))}` })
@@ -291,6 +282,16 @@ export class SessionTracker {
    */
   running(rootId: string): boolean {
     return [...this.nodes.values()].some(node => this.rootOf(node.id) === rootId && node.running)
+  }
+
+  /**
+   * Display name of any tracked Session: teammate or subagent name, title, or short id.
+   * @param id - Session id.
+   * @returns a short label.
+   */
+  nameOf(id: string): string {
+    const node = this.nodes.get(id)
+    return node === undefined ? id.slice(0, 8) : this.label(node)
   }
 
   private label(node: Node): string {

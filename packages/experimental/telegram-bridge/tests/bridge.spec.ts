@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, type Events } from '@deepseek-ai/cordis'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
+import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import type { TrackedHeader } from '../src/tracker.ts'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 import * as bridge from '../src/index.ts'
@@ -55,10 +56,22 @@ class FakeTelegram {
         chat: { id: options.chat ?? CHAT },
         ...options.from === -1 ? {} : { from: { id: options.from ?? OWNER } },
         ...options.thread === undefined ? {} : { message_thread_id: options.thread },
-        text,
+        ...text === '' ? {} : { text },
       },
     })
     this.updates.push({ update_id: this.nextUpdate++ })
+  }
+
+  press(data: string | undefined, options: { from?: number; chat?: number } = {}): void {
+    this.updates.push({
+      update_id: this.nextUpdate++,
+      callback_query: {
+        id: `cb-${String(this.nextUpdate)}`,
+        from: { id: options.from ?? OWNER },
+        ...data === undefined ? {} : { data },
+        message: { message_id: 1, chat: { id: options.chat ?? CHAT } },
+      },
+    })
   }
 
   sent(method: string): Call[] {
@@ -79,7 +92,12 @@ afterEach(async () => {
 
 type FetchWrap = (fake: FakeTelegram['fetch']) => FakeTelegram['fetch']
 
-async function setup(config: Partial<bridge.Config> = {}, wrap: FetchWrap = fake => fake) {
+const controller = {
+  prompt: vi.fn(async (_request: unknown, _signal?: AbortSignal) => ({ accepted: true as const })),
+  cancel: vi.fn((_request: unknown) => ({ accepted: true as const })),
+}
+
+async function setup(config: Partial<bridge.Config> = {}, wrap: FetchWrap = fake => fake, withController = true) {
   const telegram = new FakeTelegram()
   vi.stubGlobal('fetch', wrap(telegram.fetch))
   const ctx = new Context()
@@ -93,6 +111,9 @@ async function setup(config: Partial<bridge.Config> = {}, wrap: FetchWrap = fake
     ctx.provide('storageDomain', facility)
     return async () => { await facility.closeAll(); unmount() }
   })
+  controller.prompt.mockClear()
+  controller.cancel.mockClear()
+  if (withController) ctx.provide('sessionController', controller as Partial<Context['sessionController']> as Context['sessionController'])
   const fiber = await ctx.plugin(bridge, {
     botToken: 'T',
     chatId: CHAT,
@@ -115,6 +136,32 @@ async function setup(config: Partial<bridge.Config> = {}, wrap: FetchWrap = fake
     ctx.emit('session/event', { header } as Partial<Session> as Session, { type, seq: 0, time: 0, data } as SessionEvent)
   }
   return { ctx, telegram, fiber, emit }
+}
+
+type ApprovalAsk = Parameters<Events['approval/request']>[0]
+
+function ask(
+  ctx: Context, agentId: string, web: () => Promise<ApprovalOutcome>, signal?: AbortSignal, withReason = true,
+): Promise<ApprovalOutcome> {
+  const request: ApprovalAsk = {
+    agent: { id: agentId } as Partial<ApprovalAsk['agent']> as ApprovalAsk['agent'],
+    toolName: 'bash',
+    ...withReason ? { reason: 'rm <tmp>' } : {},
+    ...signal === undefined ? {} : { signal },
+  }
+  return ctx.waterfall('approval/request', request, web)
+}
+
+function approvals(telegram: FakeTelegram): string[][] {
+  return telegram.sent('sendMessage').flatMap((call) => {
+    const markup = call.params.reply_markup as { inline_keyboard: { callback_data: string }[][] } | undefined
+    return markup === undefined ? [] : [markup.inline_keyboard.flat().map(button => button.callback_data)]
+  })
+}
+
+async function presented(telegram: FakeTelegram, count: number): Promise<string[]> {
+  await vi.waitFor(() => { expect(approvals(telegram)).toHaveLength(count) })
+  return approvals(telegram)[count - 1]!
 }
 
 describe('telegram-bridge plugin', () => {
@@ -142,23 +189,57 @@ describe('telegram-bridge plugin', () => {
     await vi.waitFor(() => { expect(telegram.sent('editMessageText').length).toBeGreaterThanOrEqual(1) })
   })
 
-  it('answers commands from the owner only', async () => {
+  it('answers commands and forwards topic text from the owner only', async () => {
     const { telegram, emit } = await setup()
     emit({ id: 'lead-1' }, 'turn/start')
-    await vi.waitFor(() => { expect(telegram.sent('createForumTopic')).toHaveLength(1) })
+    await vi.waitFor(() => { expect(telegram.sent('pinChatMessage')).toHaveLength(1) })
     telegram.send('/oturumlar@owsservebot')
     telegram.send('/durum', { thread: 77 })
     telegram.send('/durum')
     telegram.send('merhaba', { thread: 77 })
+    telegram.send('/dur', { thread: 77 })
+    telegram.send('/bilinmeyen', { thread: 77 })
+    telegram.send('', { thread: 77 })
+    telegram.send('')
     telegram.send('/oturumlar', { from: 7 })
     telegram.send('/oturumlar', { chat: 5 })
     telegram.send('/oturumlar', { from: -1 })
-    await vi.waitFor(() => { expect(telegram.sent('sendMessage').length).toBe(5) })
+    await vi.waitFor(() => { expect(telegram.sent('sendMessage').length).toBe(7) })
     const replies = telegram.sent('sendMessage').slice(1).map(call => call.params.text)
-    expect(replies[0]).toBe('🟢 [Oturum] lead-1')
-    expect(replies[1]).toContain('🟢 Lead')
-    expect(replies[2]).toBe('Bu komutu bir oturumun konusunda kullanın.')
-    expect(replies[3]).toContain('Komutlar: /oturumlar, /durum.')
+    expect(replies).toEqual([
+      '🟢 [Oturum] lead-1',
+      expect.stringContaining('🟢 Lead'),
+      'Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /oturumlar, /durum, /dur.',
+      '📨 İletildi.',
+      '⏹ Durdurma isteği gönderildi.',
+      'Komutlar: /oturumlar, /durum, /dur. Konuya yazdığınız düz metin oturuma iletilir.',
+    ])
+    expect(controller.prompt).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'lead-1',
+      mode: 'queue',
+      content: [{ type: 'text', text: 'merhaba' }],
+    }), expect.any(AbortSignal))
+    expect(controller.cancel).toHaveBeenCalledWith({ sessionId: 'lead-1' })
+  })
+
+  it('reports failed controls and a missing Session controller', async () => {
+    const withController = await setup()
+    withController.emit({ id: 'lead-1' }, 'turn/start')
+    await vi.waitFor(() => { expect(withController.telegram.sent('pinChatMessage')).toHaveLength(1) })
+    controller.prompt.mockRejectedValueOnce(new Error('no live agent'))
+    controller.cancel.mockImplementationOnce(() => { throw 'busy' })
+    withController.telegram.send('devam et', { thread: 77 })
+    withController.telegram.send('/stop', { thread: 77 })
+    await vi.waitFor(() => { expect(withController.telegram.sent('sendMessage').length).toBe(3) })
+    expect(withController.telegram.sent('sendMessage').slice(1).map(call => call.params.text))
+      .toEqual(['⚠️ Yapılamadı: no live agent', '⚠️ Yapılamadı: busy'])
+
+    const without = await setup({}, fake => fake, false)
+    without.emit({ id: 'lead-1' }, 'turn/start')
+    await vi.waitFor(() => { expect(without.telegram.sent('pinChatMessage')).toHaveLength(1) })
+    without.telegram.send('/dur', { thread: 77 })
+    await vi.waitFor(() => { expect(without.telegram.sent('sendMessage').length).toBe(2) })
+    expect(without.telegram.sent('sendMessage')[1]?.params.text).toBe('⚠️ Yapılamadı: oturum denetleyicisi kullanılamıyor')
   })
 
   it('lists no Sessions before any turn and refreshes an existing topic after restart', async () => {
@@ -191,17 +272,69 @@ describe('telegram-bridge plugin', () => {
 
   it('waits for a turn before notifying, creates one topic for concurrent notifications, and handles unknown topics', async () => {
     const { telegram, emit } = await setup()
-    emit({ id: 'lead-2' }, 'approval/asked', { toolName: 'bash' })
+    const question = { name: 'ask_user_question', arguments: JSON.stringify({ questions: [{ question: 'Hangisi?' }] }) }
+    emit({ id: 'lead-2' }, 'tool/call', question)
     await new Promise(resolve => setTimeout(resolve, 250))
     expect(telegram.calls).toEqual([])
     emit({ id: 'lead-2' }, 'turn/start')
-    emit({ id: 'lead-2' }, 'approval/asked', { toolName: 'bash' })
-    emit({ id: 'lead-2' }, 'approval/asked', { toolName: 'edit' })
+    emit({ id: 'lead-2' }, 'tool/call', question)
+    emit({ id: 'lead-2' }, 'tool/call', question)
     await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(3) })
     expect(telegram.sent('createForumTopic')).toHaveLength(1)
     telegram.send('/durum', { thread: 999 })
     await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(4) })
-    expect(telegram.sent('sendMessage')[3]?.params.text).toBe('Bu komutu bir oturumun konusunda kullanın.')
+    expect(telegram.sent('sendMessage')[3]?.params.text).toBe('Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /oturumlar, /durum, /dur.')
+  })
+
+  it('settles an approval from the Telegram buttons and ignores stale or foreign presses', async () => {
+    const { ctx, telegram, emit } = await setup()
+    emit({ id: 'lead-1' }, 'turn/start')
+    emit({ id: 'dev-1', parentSession: 'lead-1' }, 'turn/start')
+    const allowed = ask(ctx, 'dev-1', async () => 'unavailable')
+    const [allow] = await presented(telegram, 1)
+    const prompt = telegram.sent('sendMessage').at(-1)?.params
+    expect(prompt?.message_thread_id).toBe(77)
+    expect(String(prompt?.text)).toContain('onay bekliyor: <code>bash</code> — rm &lt;tmp&gt;')
+    telegram.press(allow, { from: 7 })
+    telegram.press(allow, { chat: 5 })
+    telegram.press(allow)
+    await expect(allowed).resolves.toBe('allowed-once')
+    await vi.waitFor(() => { expect(telegram.sent('editMessageText').some(call => String(call.params.text).endsWith('✅ Onaylandı (Telegram)'))).toBe(true) })
+    telegram.press(allow)
+    telegram.press(undefined)
+    await vi.waitFor(() => { expect(telegram.sent('answerCallbackQuery')).toHaveLength(3) })
+    expect(telegram.sent('answerCallbackQuery').map(call => call.params.text)).toEqual([undefined, 'Bu onay artık geçerli değil.', 'Bu onay artık geçerli değil.'])
+
+    const rejected = ask(ctx, 'lead-1', () => Promise.reject(new Error('no web')))
+    const [, reject] = await presented(telegram, 2)
+    telegram.press(reject)
+    await expect(rejected).resolves.toBe('rejected')
+  })
+
+  it('lets a Web answer or a withdrawn request settle an approval', async () => {
+    const { ctx, telegram, emit } = await setup()
+    emit({ id: 'lead-1' }, 'turn/start')
+    await expect(ask(ctx, 'lead-1', async () => 'allowed-once')).resolves.toBe('allowed-once')
+    await vi.waitFor(() => { expect(telegram.sent('editMessageText').some(call => String(call.params.text).endsWith('✅ Onaylandı (web)'))).toBe(true) })
+
+    const withdraw = new AbortController()
+    const cancelled = ask(ctx, 'lead-1', async () => 'unavailable', withdraw.signal)
+    await presented(telegram, 2)
+    withdraw.abort()
+    await expect(cancelled).resolves.toBe('cancelled')
+    await vi.waitFor(() => { expect(telegram.sent('editMessageText').some(call => String(call.params.text).endsWith('(istek geri çekildi)'))).toBe(true) })
+  })
+
+  it('leaves an approval unavailable when neither the Web nor Telegram can answer', async () => {
+    const { ctx, telegram, emit } = await setup()
+    await expect(ask(ctx, 'ghost', async () => 'unavailable')).resolves.toBe('unavailable')
+    emit({ id: 'lead-1' }, 'turn/start')
+    await vi.waitFor(() => { expect(telegram.sent('createForumTopic')).toHaveLength(1) })
+    telegram.failNext = 'sendMessage'
+    await expect(ask(ctx, 'lead-1', async () => 'rejected')).resolves.toBe('rejected')
+    telegram.failNext = 'sendMessage'
+    await expect(ask(ctx, 'lead-1', async () => 'unavailable', undefined, false)).resolves.toBe('unavailable')
+    expect(telegram.sent('editMessageText').filter(call => String(call.params.text).includes('onay bekliyor'))).toEqual([])
   })
 
   it('reports card refresh failures other than unchanged text', async () => {
@@ -214,7 +347,7 @@ describe('telegram-bridge plugin', () => {
       return fake(url, init)
     })
     emit({ id: 'lead-3' }, 'turn/start')
-    await vi.waitFor(() => { expect(telegram.sent('createForumTopic')).toHaveLength(1) })
+    await vi.waitFor(() => { expect(telegram.sent('pinChatMessage')).toHaveLength(1) })
     emit({ id: 'lead-3' }, 'turn/end', { reason: { kind: 'aborted' } })
     await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(2) })
     emit({ id: 'lead-3' }, 'turn/start')
@@ -253,6 +386,7 @@ describe('telegram-bridge plugin', () => {
     ctx.provide('storageDomain', facility as Partial<Context['storageDomain']> as Context['storageDomain'])
     const fiber = await ctx.plugin(bridge, { botToken: 'T', chatId: CHAT, allowedUserIds: [OWNER] } as bridge.Config)
     ctx.emit('session/event', { header: { id: SessionId('a') } } as Partial<Session> as Session, { type: 'turn/start', seq: 0, time: 0 } as SessionEvent)
+    await expect(ask(ctx, 'a', async () => 'rejected')).resolves.toBe('rejected')
     const disposing = fiber.dispose()
     release()
     await disposing

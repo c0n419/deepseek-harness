@@ -11,6 +11,9 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../core/session" },
+    { "path": "../../api/session-controller/tsconfig.host.json" },
+    { "path": "../../interaction/user-approval" },
+    { "path": "../../util/brand" },
     { "path": "../../storage/storage-domain" },
     { "path": "../../util/launch-environment" }
   ]

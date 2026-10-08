@@ -1,5 +1,5 @@
 ---
-description: "在私有 Telegram 论坛群组中跟踪每个 DSH 会话：每个根会话一个话题，带有显示队友和子智能体的实时状态卡片，并在轮次完成、失败、审批请求和提问时发送通知。"
+description: "在私有 Telegram 论坛群组中跟踪并操控每个 DSH 会话：每个根会话一个话题，带有显示队友和子智能体的实时状态卡片、通知、提示、停止和审批按钮。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-telegram-bridge` 让你通过 Telegram 在手机上跟踪 DSH。任何模式下的每个根会话在运行第一个轮次后，都会在私有论坛群组中获得一个话题。话题中置顶的状态卡片显示 Lead、它的队友和子智能体、它们的模型和状态以及 token 用量，并随工作进展自行更新。轮次完成、失败、审批请求和智能体提问会以通知形式到达。桥接通过轮询 Telegram 工作，因此不需要入站端口，并且只回应已配置群组中的已配置用户。本版本不包含从 Telegram 发送提示和回答审批。
+`dsh-experimental-telegram-bridge` 让你通过 Telegram 在手机上跟踪并操控 DSH。任何模式下的每个根会话在运行第一个轮次后，都会在私有论坛群组中获得一个话题。置顶且自动更新的状态卡片显示 Lead、它的队友和子智能体、它们的模型和状态以及 token 用量。轮次完成、失败和提问会以通知形式到达。在话题中写下的文本会成为提示，`/dur` 会停止轮次，审批请求带有与 Web 对话框竞争作答的按钮。桥接通过轮询 Telegram 工作，不需要入站端口，并且只接受已配置群组中已配置用户的输入。
 
 ## 目录
 
@@ -66,11 +66,21 @@ kind: "package-reference"
 | 根轮次被停止 | `⏹ Tur durduruldu.`，静音 |
 | 树中任一轮次失败 | `❌` 和失败信息，有提示音 |
 | 队友无法启动 | `❌ <name> başlatılamadı` 和原因，有提示音 |
-| 请求审批 | `🔔` 和工具及原因，有提示音 |
+| 树中任意位置请求审批 | `🔔` 和工具、原因以及 `✅ Onayla` / `❌ Reddet` 按钮；消息会记录答案及作答方 |
 | 智能体调用 `ask_user_question` | `❓` 和第一个问题，有提示音 |
 | 其他变化 | 仅编辑状态卡片 |
 
-允许用户可用的命令：`/oturumlar`（或 `/sessions`）列出跟踪中的会话；在话题中使用 `/durum`（或 `/status`）会重新发送该话题的状态卡片。
+允许用户的输入：
+
+| 输入 | 效果 |
+|---|---|
+| `/oturumlar` 或 `/sessions` | 列出跟踪中的会话 |
+| 话题中的 `/durum` 或 `/status` | 重新发送该话题的状态卡片 |
+| 话题中的 `/dur` 或 `/stop` | 取消根会话正在运行的轮次 |
+| 话题中的纯文本 | 作为提示排入根会话，并回复 `📨 İletildi.` |
+| 审批按钮 | 若该审批仍在等待，则作答 |
+
+提示和 `/dur` 需要 `sessionController` 服务；没有该服务时桥接会回复失败信息。
 
 -----
 
@@ -80,11 +90,11 @@ kind: "package-reference"
 <details>
 <summary>实现内部细节——点击展开</summary>
 
-[`src/tracker.ts`](src/tracker.ts) 使用每个会话头中的 `parentSession`、`team/member` 记录和 `subagent/descriptor` 标签，把每个 `session/event` 折叠为每个根会话一棵树；它渲染卡片并返回通知，不做任何 I/O。[`src/telegram.ts`](src/telegram.ts) 调用 Bot API，以最小间隔串行化写入，并等待 `retry_after`。[`src/index.ts`](src/index.ts) 打开 `telegram_bridge` 存储域（[`src/storage.ts`](src/storage.ts)），其中保存每个根会话的话题和卡片消息以及下一个更新偏移；在根会话第一次需要时创建话题；按定时器刷新变化的卡片；并长轮询命令，忽略其他聊天和用户。
+[`src/tracker.ts`](src/tracker.ts) 使用每个会话头中的 `parentSession`、`team/member` 记录和 `subagent/descriptor` 标签，把每个 `session/event` 折叠为每个根会话一棵树；它渲染卡片并返回通知，不做任何 I/O。[`src/telegram.ts`](src/telegram.ts) 调用 Bot API，以最小间隔串行化写入，并等待 `retry_after`。[`src/index.ts`](src/index.ts) 打开 `telegram_bridge` 存储域（[`src/storage.ts`](src/storage.ts)），其中保存每个根会话的话题和卡片消息以及下一个更新偏移；在根会话第一次需要时创建话题；按定时器刷新变化的卡片；并长轮询消息和按钮点击，忽略其他聊天和用户。它最先应答 `approval/request`：发送按钮的同时调用 `next()` 交给 Web 应答者，按钮点击、非 `unavailable` 的 Web 结果或请求的中止信号中最先到达者决定结果。按钮未能发送且 Web 不可用时，结果为 `unavailable`。
 
 | 文件 | 作用 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口、话题、卡片刷新、通知、命令 |
+| [`src/index.ts`](src/index.ts) | 插件入口、话题、卡片刷新、通知、命令、提示、审批 |
 | [`src/tracker.ts`](src/tracker.ts) | 会话树、卡片文本、通知 |
 | [`src/telegram.ts`](src/telegram.ts) | Bot API 客户端和写入队列 |
 | [`src/storage.ts`](src/storage.ts) | 持久的话题和更新偏移记录 |
@@ -105,7 +115,7 @@ kind: "package-reference"
 <a id="model-experience"></a>
 ## 模型体验
 
-无，因为桥接只读取会话事件，不注册任何工具、提示或会话事件。
+无，因为桥接不注册任何工具、提示或会话事件；它转发的文本作为普通用户提示进入会话。
 
 #### KV Cache 影响
 
@@ -115,7 +125,8 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅跟踪**——从 Telegram 发送提示、`/stop`、审批按钮和回答问题将在后续版本中提供。
+- **Web 对话框保持打开**——审批在 Telegram 中作答后，已打开的 Web 审批对话框仍然可见，其后的回答会被忽略，因为 `approval/request` 不向应答者提供上游已决定的信号。
+- **无法回答提问**——`ask_user_question` 只以通知形式到达；请在 Web 界面中回答。
 - **非端到端加密**——Telegram 能读取机器人通信；标题、项目名称和摘录会离开本机。
 - **从空开始**——桥接启动后才从第一个事件开始跟踪会话；不会回放更早的历史。
 - **需要论坛群组**——未启用话题的群组会拒绝创建话题，桥接会记录该失败。

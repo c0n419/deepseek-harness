@@ -65,7 +65,7 @@ describe('TelegramClient', () => {
     const signal = new AbortController().signal
     await expect(c.getUpdates(4, 30, signal)).resolves.toEqual([{ update_id: 9 }])
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({ signal })
-    expect(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).toEqual({ offset: 4, timeout: 30, allowed_updates: ['message'] })
+    expect(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).toEqual({ offset: 4, timeout: 30, allowed_updates: ['message', 'callback_query'] })
   })
 
   it('uses the global fetch and a real delay by default', async () => {

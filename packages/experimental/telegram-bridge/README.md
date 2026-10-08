@@ -1,5 +1,5 @@
 ---
-description: "Follow every DSH Session from a private Telegram forum group: one topic per root Session with a live status card for its teammates and subagents, plus notifications for finished turns, failures, approvals, and questions."
+description: "Follow and steer every DSH Session from a private Telegram forum group: one topic per root Session with a live status card for its teammates and subagents, notifications, prompts, stop, and approval buttons."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-telegram-bridge` lets you follow DSH from your phone through Telegram. Every root Session of every mode gets a topic in a private forum group once it runs a turn. A pinned status card in that topic shows the Lead, its teammates and subagents, their models and states, and token use, and edits itself as work progresses. Finished turns, failures, approval requests, and agent questions arrive as notifications. The bridge polls Telegram, so it needs no inbound port, and it answers only configured users in the configured group. Sending prompts and answering approvals from Telegram is not part of this version.
+`dsh-experimental-telegram-bridge` lets you follow and steer DSH from your phone through Telegram. Every root Session of every mode gets a topic in a private forum group once it runs a turn. A pinned, self-updating status card shows the Lead, its teammates and subagents, their models and states, and token use. Finished turns, failures, and questions arrive as notifications. Text written in a topic becomes a prompt, `/dur` stops the turn, and approvals arrive with buttons that race the Web dialog. The bridge polls Telegram, needs no inbound port, and accepts input only from configured users in the configured group.
 
 ## Table of Contents
 
@@ -66,11 +66,21 @@ Mount the plugin in a composition that provides `storageDomain`:
 | A root turn is stopped | `⏹ Tur durduruldu.`, silent |
 | Any turn in the tree fails | `❌` with the failure message, with sound |
 | A teammate cannot start | `❌ <name> başlatılamadı` with the reason, with sound |
-| An approval is requested | `🔔` with the tool and reason, with sound |
+| An approval is requested anywhere in the tree | `🔔` with the tool, the reason, and `✅ Onayla` / `❌ Reddet` buttons; the message records the answer and who gave it |
 | An agent calls `ask_user_question` | `❓` with the first question, with sound |
 | Any other change | Status card edit only |
 
-Commands from allowed users: `/oturumlar` (or `/sessions`) lists followed Sessions; `/durum` (or `/status`) in a topic repeats its status card.
+Input from allowed users:
+
+| Input | Effect |
+|---|---|
+| `/oturumlar` or `/sessions` | Lists followed Sessions |
+| `/durum` or `/status` in a topic | Repeats the topic's status card |
+| `/dur` or `/stop` in a topic | Cancels the root Session's running turn |
+| Plain text in a topic | Queued as a prompt to the root Session, replied with `📨 İletildi.` |
+| An approval button | Answers that approval if it is still pending |
+
+Prompts and `/dur` need the `sessionController` service; without it the bridge replies with the failure.
 
 -----
 
@@ -80,11 +90,11 @@ Commands from allowed users: `/oturumlar` (or `/sessions`) lists followed Sessio
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-[`src/tracker.ts`](src/tracker.ts) folds every `session/event` into one tree per root Session, using each Session header's `parentSession`, `team/member` rows, and `subagent/descriptor` labels; it renders the card and returns notifications without I/O. [`src/telegram.ts`](src/telegram.ts) calls the Bot API, serializes writes with a minimum gap, and waits out `retry_after`. [`src/index.ts`](src/index.ts) opens the `telegram_bridge` storage domain ([`src/storage.ts`](src/storage.ts)), which keeps each root Session's topic and card message and the next update offset; creates a topic the first time a root Session needs one; refreshes changed cards on a timer; and long-polls for commands, ignoring other chats and users.
+[`src/tracker.ts`](src/tracker.ts) folds every `session/event` into one tree per root Session, using each Session header's `parentSession`, `team/member` rows, and `subagent/descriptor` labels; it renders the card and returns notifications without I/O. [`src/telegram.ts`](src/telegram.ts) calls the Bot API, serializes writes with a minimum gap, and waits out `retry_after`. [`src/index.ts`](src/index.ts) opens the `telegram_bridge` storage domain ([`src/storage.ts`](src/storage.ts)), which keeps each root Session's topic and card message and the next update offset; creates a topic the first time a root Session needs one; refreshes changed cards on a timer; and long-polls for messages and button presses, ignoring other chats and users. It answers `approval/request` first: it sends the buttons and calls `next()` for the Web answerer at the same time, and the first of a button press, a Web outcome other than `unavailable`, or the request's abort signal decides. When the buttons could not be sent and the Web is unavailable, the outcome is `unavailable`.
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry, topics, card refresh, notifications, commands |
+| [`src/index.ts`](src/index.ts) | Plugin entry, topics, card refresh, notifications, commands, prompts, approvals |
 | [`src/tracker.ts`](src/tracker.ts) | Session tree, card text, notifications |
 | [`src/telegram.ts`](src/telegram.ts) | Bot API client and write queue |
 | [`src/storage.ts`](src/storage.ts) | Durable topic and update-offset records |
@@ -105,7 +115,7 @@ Commands from allowed users: `/oturumlar` (or `/sessions`) lists followed Sessio
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the bridge only reads Session events and registers no tools, prompts, or Session events.
+None, as the bridge registers no tools, prompts, or Session events; text it forwards enters a Session as an ordinary user prompt.
 
 #### KV Cache effect
 
@@ -115,7 +125,8 @@ No direct effect; the bridge never writes model input.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Follow only** — prompts, `/stop`, approval buttons, and question answers from Telegram come in a later version.
+- **Web dialog stays open** — after an approval is answered in Telegram, an open Web approval dialog stays visible and its later answer is ignored, because `approval/request` gives answerers no signal for a decision made upstream.
+- **Questions are not answerable** — `ask_user_question` arrives as a notification; answer it in the Web UI.
 - **Not end-to-end encrypted** — Telegram bot traffic is readable by Telegram; titles, project names, and excerpts leave the machine.
 - **Starts empty** — Sessions are followed from the first event after the bridge starts; earlier history is not replayed.
 - **Forum group required** — a group without Topics rejects topic creation and the bridge logs the failure.

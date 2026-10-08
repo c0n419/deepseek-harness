@@ -8,6 +8,15 @@
 export interface TelegramUpdate {
   readonly update_id: number
   readonly message?: TelegramMessage
+  readonly callback_query?: TelegramCallbackQuery
+}
+
+/** One inline-button press, reduced to the fields the bridge reads. */
+export interface TelegramCallbackQuery {
+  readonly id: string
+  readonly from: { readonly id: number }
+  readonly data?: string
+  readonly message?: TelegramMessage
 }
 
 /** One incoming chat message, reduced to the fields the bridge reads. */
@@ -140,6 +149,6 @@ export class TelegramClient {
    * @returns the new updates.
    */
   getUpdates(offset: number, timeoutSeconds: number, signal: AbortSignal): Promise<TelegramUpdate[]> {
-    return this.call<TelegramUpdate[]>('getUpdates', { offset, timeout: timeoutSeconds, allowed_updates: ['message'] }, signal)
+    return this.call<TelegramUpdate[]>('getUpdates', { offset, timeout: timeoutSeconds, allowed_updates: ['message', 'callback_query'] }, signal)
   }
 }
