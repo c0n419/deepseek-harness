@@ -14,7 +14,7 @@ Herdr 的服务器把工作区、标签、窗格与 agent 作为一份不属于�
 
 该服务直接连接服务器的 AF_UNIX socket，从不派生 `herdr` CLI。服务器对每条连接只回答一个请求，因此每个一元调用都会单独建立连接，而一条长驻的 `events.subscribe` 连接推送触发重新读取的事件；服务器接受订阅却始终不确认时，该连接在 `requestTimeoutMs` 内被关闭并重试，因此服务不会一边自称已连接一边停在半开 socket 上。
 
-推送事件不会各自触发一次重新读取。每个事件都在 `outputCoalesceMs` 窗口之后安排一次读取，而读取进行期间到达的请求由随后的窗口处理，而不是再开一对连接——`pane.updated` 会在每次输出刷新时触发，因此一段终端输出突发只变成一次快照。
+推送事件不会各自触发一次重新读取。每个事件都在 `outputCoalesceMs` 窗口之后安排一次读取，而读取进行期间到达的请求由随后的窗口处理，而不是再开一对连接——`pane.updated` 会在智能体面板每次重绘时触发，因此一段突发只变成一次快照。普通 shell 输出时不推送事件且 revision 不变，因此面板按每个视图携带的 `outputRefreshMs` 间隔重新读取所显示的面板。
 
 连接时会校验协议号与服务器版本；不一致时发布带两个数字的 `incompatible`，而不是继续解析未知帧；socket 缺失或不可读时发布带原因的 `unavailable`。中断会以有界退避持续重试，因为 Herdr 通常在 harness 之后启动；两种状态都是面板渲染的视图数据，因此服务器未运行的可选 bundle 不会破坏 harness 组合。协议不一致是终止性的，不会被重试：循环停止，而下一次 `watch()`——也就是面板「重试」所打开的那一次——会重新探测服务器，因此升级后的服务器无需刷新页面即可恢复。
 
@@ -22,7 +22,7 @@ Herdr 的服务器把工作区、标签、窗格与 agent 作为一份不属于�
 
 ## 配置
 
-`socketPath` 选择 API socket；省略时依次解析 `HERDR_SOCKET_PATH` 与 Herdr 配置目录下默认会话的 socket，配置为相对路径时在构造期报错。`requestTimeoutMs`、`reconnectInitialMs`、`reconnectMaxMs`、`maxFrameBytes`、`readLines` 与 `outputCoalesceMs` 约束传输、重试节奏与重新读取窗口，`expectedProtocol` 指明本构建所说的 socket 协议。
+`socketPath` 选择 API socket；省略时依次解析 `HERDR_SOCKET_PATH` 与 Herdr 配置目录下默认会话的 socket，配置为相对路径时在构造期报错。`requestTimeoutMs`、`reconnectInitialMs`、`reconnectMaxMs`、`maxFrameBytes`、`readLines`、`outputCoalesceMs` 与 `outputRefreshMs` 约束传输、重试节奏、重新读取窗口与面板刷新间隔，`expectedProtocol` 指明本构建所说的 socket 协议。
 
 ## 设计依据
 

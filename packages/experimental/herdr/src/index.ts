@@ -72,6 +72,9 @@ const DEFAULT_READ_LINES = 400
 /** Default window the stream coalesces updates within, in milliseconds. */
 const DEFAULT_OUTPUT_COALESCE_MS = 120
 
+/** Default interval a panel re-reads its selected pane at, in milliseconds. */
+const DEFAULT_OUTPUT_REFRESH_MS = 1_000
+
 /** Plugin configuration: everything a deployment may vary. */
 export interface Config {
   /**
@@ -94,6 +97,12 @@ export interface Config {
   readLines?: number
   /** Milliseconds view updates are coalesced within, so a busy pane cannot flood the Client; omission defaults to 120. */
   outputCoalesceMs?: number
+  /**
+   * Milliseconds between re-reads of the pane a panel shows. Herdr pushes no
+   * event when a plain shell prints, so a shown pane follows its output by
+   * re-reading; omission defaults to 1000.
+   */
+  outputRefreshMs?: number
 }
 
 /**
@@ -143,10 +152,11 @@ function requirePositive(value: number, name: string): number {
   return value
 }
 
-/** Assemble one view frame from a connection state and a decoded list set. */
-function viewOf(connection: HerdrConnection, lists: ParsedView): HerdrView {
+/** Assemble one view frame from a connection state, a decoded list set, and the panel refresh interval. */
+function viewOf(connection: HerdrConnection, lists: ParsedView, outputRefreshMs: number): HerdrView {
   return {
     connection,
+    outputRefreshMs,
     workspaces: lists.workspaces,
     tabs: lists.tabs,
     panes: lists.panes,
@@ -174,6 +184,7 @@ export default class HerdrService extends TypertRemoteService {
     maxFrameBytes: z.number().default(DEFAULT_MAX_FRAME_BYTES),
     readLines: z.number().default(DEFAULT_READ_LINES),
     outputCoalesceMs: z.number().default(DEFAULT_OUTPUT_COALESCE_MS),
+    outputRefreshMs: z.number().default(DEFAULT_OUTPUT_REFRESH_MS),
   })
 
   private readonly config: Resolved
@@ -215,6 +226,7 @@ export default class HerdrService extends TypertRemoteService {
     requirePositive(this.config.maxFrameBytes, 'maxFrameBytes')
     requirePositive(this.config.readLines, 'readLines')
     requirePositive(this.config.outputCoalesceMs, 'outputCoalesceMs')
+    requirePositive(this.config.outputRefreshMs, 'outputRefreshMs')
     this.socketPath = resolveSocketPath(config, process.env)
     this.reconnectDelay = this.config.reconnectInitialMs
     this.client = new HerdrClient({
@@ -529,7 +541,7 @@ export default class HerdrService extends TypertRemoteService {
 
   private publish(): void {
     this.generation += 1
-    const view = viewOf(this.connection, this.lists)
+    const view = viewOf(this.connection, this.lists, this.config.outputRefreshMs)
     for (const watcher of this.watchers) {
       watcher.view = view
       watcher.notify()
@@ -551,7 +563,7 @@ export default class HerdrService extends TypertRemoteService {
     }
     signal.addEventListener('abort', onAbort, { once: true })
     const watcher: Watcher = {
-      view: viewOf(this.connection, this.lists),
+      view: viewOf(this.connection, this.lists, this.config.outputRefreshMs),
       notify: (): void => { wake?.() },
       dispose: (): void => { signal.removeEventListener('abort', onAbort) },
       next: async (): Promise<void> => {

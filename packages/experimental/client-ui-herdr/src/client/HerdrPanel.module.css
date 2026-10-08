@@ -271,8 +271,7 @@
   font-family: var(--dsw-font-markdown-code-block-small);
   font-size: 12px;
   line-height: 16px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  white-space: pre;
   color: var(--dsw-alias-label-secondary);
 }
 

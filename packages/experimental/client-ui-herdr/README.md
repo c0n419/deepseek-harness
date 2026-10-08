@@ -33,7 +33,7 @@ The left column lists every workspace the Herdr server reports, with its tabs, a
 
 ### Read output and send input
 
-The right column shows the selected pane's recent output as unwrapped plain text; no controls appear until a pane is selected. Herdr advances a pane's revision whenever its output changes, and the watch stream pushes that revision, so the panel re-reads the selected pane exactly when it actually changed; re-picking the pane already shown also re-reads it, and a read that lands after the human moved on is discarded. The prompt box sends one prompt to the agent hosted by the selected pane and is withheld on a pane that has none — the box shows the no-agent copy and Send stays disabled — because Herdr can only prompt an agent. The key row and the Focus action address the pane itself, so they stay available for every pane; the keys are Esc, Ctrl+C, Enter, Up, Down, y, and n. A command Herdr rejects is reported beside the controls, and a pane that disappeared from the server is reported in place of its output.
+The right column shows the selected pane's recent output as unwrapped plain text and keeps the newest line in sight until the human scrolls up; no controls appear until a pane is selected. Herdr pushes no event when a plain shell prints, so the panel re-reads the selected pane every `outputRefreshMs` milliseconds (a Host setting carried in the view), skipping a tick while a read is in flight; a pushed revision change, re-picking the pane, and every sent prompt or key also re-read it, and a read that lands after the human moved on is discarded. The prompt box submits on Enter or Send and sends one prompt to the agent hosted by the selected pane and is withheld on a pane that has none — the box shows the no-agent copy and Send stays disabled — because Herdr can only prompt an agent. The key row and the Focus action address the pane itself, so they stay available for every pane; the keys are Esc, Ctrl+C, Enter, Up, Down, y, and n. A command Herdr rejects is reported beside the controls, and a pane that disappeared from the server is reported in place of its output.
 
 ### Connection states
 
@@ -84,7 +84,7 @@ No direct effect; no model request of this harness carries Herdr state.
 
 - **No layout mutation** — the panel cannot create, close, split, or move workspaces, tabs, or panes; it reads structure and drives the selected pane.
 - **Plain-text output only** — the selected pane's output renders without terminal emulation, so cursor-addressed redraws read as their raw text.
-- **Revision-driven reads** — the panel re-reads a pane when its pushed revision changes; a server that reports no revision leaves the output as the one-shot read taken when the pane was selected.
+- **Interval reads** — the shown pane follows its output by re-reading every `outputRefreshMs`, so new text appears up to one interval late, and the output is plain text without terminal colors or direct keystroke input.
 - **Key allowlist** — only Esc, Ctrl+C, Enter, Up, Down, y, and n are offered; arbitrary keystrokes are out of scope.
 - **Prompting needs an agent** — the prompt box is withheld on a pane where Herdr detected no agent; such a pane still accepts the key row and the Focus action.
 - **Late plugin activation** — after enabling the bundle in an already-open page, reload to receive the panel's slots.

@@ -996,7 +996,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-experimental-herdr`
 
-- `source`: [`packages/experimental/herdr/src/index.ts:76`](../packages/experimental/herdr/src/index.ts)
+- `source`: [`packages/experimental/herdr/src/index.ts:79`](../packages/experimental/herdr/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: everything a deployment may vary. */
@@ -1021,6 +1021,12 @@ export interface Config {
   readLines?: number
   /** Milliseconds view updates are coalesced within, so a busy pane cannot flood the Client; omission defaults to 120. */
   outputCoalesceMs?: number
+  /**
+   * Milliseconds between re-reads of the pane a panel shows. Herdr pushes no
+   * event when a plain shell prints, so a shown pane follows its output by
+   * re-reading; omission defaults to 1000.
+   */
+  outputRefreshMs?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-herdr -->

@@ -5457,7 +5457,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'HerdrView',
-    declaration: 'export interface HerdrView {\n    connection: HerdrConnection;\n    workspaces: HerdrWorkspace[];\n    tabs: HerdrTab[];\n    panes: HerdrPane[];\n    agents: HerdrAgent[];\n    focusedPaneId?: HerdrPaneId;\n}',
+    declaration: 'export interface HerdrView {\n    connection: HerdrConnection;\n    outputRefreshMs: number;\n    workspaces: HerdrWorkspace[];\n    tabs: HerdrTab[];\n    panes: HerdrPane[];\n    agents: HerdrAgent[];\n    focusedPaneId?: HerdrPaneId;\n}',
   },
   {
     name: 'HerdrWorkspace',

@@ -87,7 +87,10 @@ export interface HerdrPane {
   focused: boolean
   /** Pane state as reported by the server. */
   agentStatus: HerdrAgentStatus
-  /** Pane content revision; advances whenever the pane's output changes. */
+  /**
+   * Server-side pane revision. It advances with agent state changes, not with
+   * every byte of output: a plain shell that prints keeps its revision.
+   */
   revision: number
   /** Live agent name, when Herdr recognized one in this pane. */
   agent?: HerdrAgentName
@@ -129,6 +132,8 @@ export type HerdrConnection =
 export interface HerdrView {
   /** Current reachability of the server. */
   connection: HerdrConnection
+  /** Milliseconds between re-reads of a shown pane, from the service's `outputRefreshMs`. */
+  outputRefreshMs: number
   /** Every workspace of the server's live session. */
   workspaces: HerdrWorkspace[]
   /** Every tab of those workspaces. */

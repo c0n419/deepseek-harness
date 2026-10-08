@@ -40,6 +40,8 @@ const agent: HerdrAgent = {
 }
 const connected: HerdrView = {
   connection: { status: 'connected', version: '0.8.2', protocol: 20 },
+  // Long enough that no refresh tick fires inside a test that is not about it.
+  outputRefreshMs: 60_000,
   workspaces: [workspace], tabs: [tab], panes: [paneOne, paneTwo], agents: [agent],
   focusedPaneId: HerdrPaneId('w1:p1'),
 }
@@ -289,7 +291,7 @@ describe('HerdrPanel', () => {
     await waitFor(() => { expect(screen.getByLabelText(badgeLabel(zh.statusBlocked))).toBeTruthy() })
   })
 
-  it('does not re-read the pane when the accepted key is sent', async () => {
+  it('re-reads the pane after a key so its reaction is shown', async () => {
     const b = bench()
     render(<HerdrPanel {...b.props} />)
     clickPane('w1:p1')
@@ -297,7 +299,7 @@ describe('HerdrPanel', () => {
     const before = b.faces.read.mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: zh.esc }))
     await waitFor(() => { expect(b.faces.sendKeys).toHaveBeenCalledWith(HerdrPaneId('w1:p1'), ['esc']) })
-    expect(b.faces.read.mock.calls.length).toBe(before)
+    await waitFor(() => { expect(b.faces.read.mock.calls.length).toBe(before + 1) })
   })
 
   it('reports a thrown command as a failure line', async () => {
@@ -342,6 +344,7 @@ describe('HerdrPanel', () => {
   it('renders the unavailable state with its reason and retries on demand', () => {
     const b = bench({
       connection: { status: 'unavailable', reason: 'ENOENT' },
+      outputRefreshMs: 60_000,
       workspaces: [], tabs: [], panes: [], agents: [],
     })
     render(<HerdrPanel {...b.props} />)
@@ -354,6 +357,7 @@ describe('HerdrPanel', () => {
   it('renders the incompatible state with both protocol numbers and a retry that reopens the watch', () => {
     const b = bench({
       connection: { status: 'incompatible', expected: 20, actual: 19 },
+      outputRefreshMs: 60_000,
       workspaces: [], tabs: [], panes: [], agents: [],
     })
     render(<HerdrPanel {...b.props} />)
@@ -371,7 +375,7 @@ describe('HerdrPanel', () => {
     render(<HerdrPanel {...b.props} />)
     expect(screen.getByText(zh.reading)).toBeTruthy()
     act(() => {
-      b.view.set({ connection: { status: 'connected', version: '0.8.2', protocol: 20 }, workspaces: [], tabs: [], panes: [], agents: [] })
+      b.view.set({ connection: { status: 'connected', version: '0.8.2', protocol: 20 }, outputRefreshMs: 60_000, workspaces: [], tabs: [], panes: [], agents: [] })
     })
     expect(screen.getByText(zh.empty)).toBeTruthy()
   })
@@ -456,5 +460,75 @@ describe('HerdrPanel', () => {
     await waitFor(() => { expect(b.faces.read).toHaveBeenCalled() })
     fireEvent.change(screen.getByLabelText(zh.prompt), { target: { value: '   ' } })
     expect(screen.getByRole('button', { name: zh.send })).toHaveProperty('disabled', true)
+  })
+
+  it('re-reads the shown pane at the Host interval although its revision never moves', async () => {
+    const b = bench({ ...connected, outputRefreshMs: 20 })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await waitFor(() => { expect(b.faces.read.mock.calls.length).toBeGreaterThanOrEqual(3) })
+    expect(new Set(b.faces.read.mock.calls.map(([paneId]) => paneId))).toEqual(new Set([HerdrPaneId('w1:p1')]))
+  })
+
+  it('skips a refresh tick while a read is still in flight', async () => {
+    let release: (value: HerdrReadResult) => void = () => {}
+    const read = vi.fn(async (paneId: HerdrPaneId) => {
+      if (read.mock.calls.length === 1) return { ...readResult, paneId }
+      return new Promise<HerdrReadResult>((resolve) => { release = resolve })
+    })
+    const b = bench({ ...connected, outputRefreshMs: 15 }, { read })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await waitFor(() => { expect(read).toHaveBeenCalledTimes(2) })
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)) })
+    expect(read).toHaveBeenCalledTimes(2)
+    await act(async () => { release({ ...readResult, text: 'late' }) })
+    await waitFor(() => { expect(read.mock.calls.length).toBeGreaterThan(2) })
+  })
+
+  it('sends the prompt when Enter submits the box', async () => {
+    const b = bench()
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p2')
+    const box = screen.getByLabelText(zh.prompt)
+    fireEvent.change(box, { target: { value: 'go on' } })
+    const form = box.closest('form')
+    expect(form).not.toBeNull()
+    if (form !== null) fireEvent.submit(form)
+    await waitFor(() => { expect(b.faces.prompt).toHaveBeenCalledWith(HerdrPaneId('w1:p2'), 'go on') })
+  })
+
+  it('ignores Enter on an empty draft or an agent-less pane', () => {
+    const b = bench()
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p2')
+    const form = screen.getByLabelText(zh.prompt).closest('form')
+    if (form !== null) fireEvent.submit(form)
+    clickPane('w1:p1')
+    fireEvent.change(screen.getByLabelText(zh.prompt), { target: { value: 'ignored' } })
+    const shellForm = screen.getByLabelText(zh.prompt).closest('form')
+    if (shellForm !== null) fireEvent.submit(shellForm)
+    expect(b.faces.prompt).not.toHaveBeenCalled()
+  })
+
+  it('keeps the newest output in sight until the human scrolls up', async () => {
+    let text = 'first'
+    const b = bench(connected, { read: vi.fn(async (paneId: HerdrPaneId) => ({ ...readResult, paneId, text })) })
+    const { rerender } = render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    const box = await screen.findByText('first')
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, value: 500 })
+    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 100 })
+    text = 'second'
+    act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 4 }, paneTwo] }) })
+    await screen.findByText('second')
+    expect(box.scrollTop).toBe(500)
+    box.scrollTop = 0
+    fireEvent.scroll(box)
+    text = 'third'
+    act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 5 }, paneTwo] }) })
+    rerender(<HerdrPanel {...b.props} />)
+    await screen.findByText('third')
+    expect(box.scrollTop).toBe(0)
   })
 })

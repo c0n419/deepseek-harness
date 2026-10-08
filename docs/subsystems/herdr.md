@@ -14,7 +14,7 @@ Every command addresses a pane, not an agent name. `focus(paneId)` and `sendKeys
 
 The service dials the server's AF_UNIX socket directly and never spawns the `herdr` CLI. The server answers exactly one request per connection, so each unary call opens its own connection, while one long-lived `events.subscribe` connection pushes the events that trigger a re-read; a subscription the server accepts but never confirms is closed and retried within `requestTimeoutMs`, so the service cannot sit on a half-open socket while reporting itself connected.
 
-Pushed events do not each cost a re-read. Every event schedules one re-read after the `outputCoalesceMs` window, and a request that arrives while a re-read is in flight is served by the trailing window instead of opening a second pair of connections — `pane.updated` fires on every output flush, so a burst of terminal output becomes one snapshot.
+Pushed events do not each cost a re-read. Every event schedules one re-read after the `outputCoalesceMs` window, and a request that arrives while a re-read is in flight is served by the trailing window instead of opening a second pair of connections — `pane.updated` fires on every agent-pane redraw, so a burst becomes one snapshot. A plain shell that prints pushes no event and keeps its revision, so a panel follows its shown pane by re-reading it every `outputRefreshMs`, which each view carries.
 
 Protocol number and server version are verified on connect; a mismatch publishes `incompatible` with both numbers instead of proceeding against unknown frames, and an absent or unreadable socket publishes `unavailable` with the reason. An outage keeps retrying with bounded backoff, because Herdr normally starts after the harness, and both states are view data the panel renders, so an optional bundle whose server is not running leaves the harness composition intact. A protocol mismatch is terminal rather than retried: the loop stops, and the next `watch()` — which is what the panel's Retry opens — re-probes the server, so an upgraded server recovers without a page reload.
 
@@ -22,7 +22,7 @@ Topology events are global, while the per-pane agent-state event requires a `pan
 
 ## Configuration
 
-`socketPath` selects the API socket; omission resolves `HERDR_SOCKET_PATH` and then the default session's socket under the Herdr config directory, and a relative configured path fails at construction. `requestTimeoutMs`, `reconnectInitialMs`, `reconnectMaxMs`, `maxFrameBytes`, `readLines`, and `outputCoalesceMs` bound the transport, the retry schedule, and the re-read window, and `expectedProtocol` names the socket protocol this build speaks.
+`socketPath` selects the API socket; omission resolves `HERDR_SOCKET_PATH` and then the default session's socket under the Herdr config directory, and a relative configured path fails at construction. `requestTimeoutMs`, `reconnectInitialMs`, `reconnectMaxMs`, `maxFrameBytes`, `readLines`, `outputCoalesceMs`, and `outputRefreshMs` bound the transport, the retry schedule, the re-read window, and the panel's refresh interval, and `expectedProtocol` names the socket protocol this build speaks.
 
 ## Design rationale
 

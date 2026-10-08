@@ -35,6 +35,7 @@ interface HerdrNamespace {
 /** A view the fake watch stream pushes. */
 const view: HerdrView = {
   connection: { status: 'connected', version: '0.8.2', protocol: 20 },
+  outputRefreshMs: 60_000,
   workspaces: [], tabs: [], panes: [], agents: [],
 }
 

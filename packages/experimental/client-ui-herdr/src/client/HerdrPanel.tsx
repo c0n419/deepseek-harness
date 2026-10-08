@@ -5,7 +5,7 @@
  * and reaches the Host only through the injected command faces.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button, IconRefreshOutlineRegular, IconWarningTriangleOutlineRegular,
@@ -278,6 +278,13 @@ export function HerdrPanel({
   // Request order: only the newest read may land, so a slow read of a pane the
   // human already left cannot overwrite the pane now on screen.
   const reads = useRef(0)
+  // One read at a time: a refresh tick that lands while a read is in flight is
+  // skipped instead of queued, so a slow server cannot accumulate requests.
+  const reading = useRef(false)
+  const outputBox = useRef<HTMLPreElement>(null)
+  // Whether the output box follows new text. Scrolling up to read history
+  // releases it; scrolling back to the bottom, or picking a pane, re-engages it.
+  const following = useRef(true)
 
   const selectedPane = view?.panes.find(pane => pane.paneId === selected)
   const shown = selected !== undefined && output?.paneId === selected ? output.value : undefined
@@ -303,6 +310,7 @@ export function HerdrPanel({
   const load = async (paneId: HerdrPaneId): Promise<void> => {
     const request = reads.current + 1
     reads.current = request
+    reading.current = true
     try {
       const value = await read(paneId)
       if (request !== reads.current) return
@@ -311,21 +319,47 @@ export function HerdrPanel({
     } catch (error: unknown) {
       if (request !== reads.current) return
       setFailure(t('commandFailed', { message: messageOf(error) }))
+    } finally {
+      if (request === reads.current) reading.current = false
     }
   }
 
-  // Follow the selected pane without polling: Herdr advances the pane's
-  // revision whenever its output changes, and the watch stream pushes that
-  // revision, so this effect re-reads exactly when the pane actually changed.
-  // A revision-less pane (a server that reports none) reads once on selection.
+  // Read on selection and whenever the pushed revision moves (agent state).
   useEffect(() => {
     if (selected === undefined || revision === undefined) return
     void load(selected)
   }, [selected, revision, selection])
 
+  // Herdr pushes no event when a plain shell prints, so the shown pane also
+  // follows its output by re-reading at the Host-configured interval.
+  const refreshMs = view?.outputRefreshMs
+  useEffect(() => {
+    if (selected === undefined || refreshMs === undefined) return
+    const timer = setInterval(() => {
+      if (!reading.current) void load(selected)
+    }, refreshMs)
+    return () => { clearInterval(timer) }
+  }, [selected, refreshMs])
+
+  // Keep the newest output in sight while the box is following.
+  const shownText = shown !== undefined && 'text' in shown ? shown.text : undefined
+  useLayoutEffect(() => {
+    const box = outputBox.current
+    if (box !== null && following.current) box.scrollTop = box.scrollHeight
+  }, [shownText])
+
+  /** Track whether the human scrolled away from the newest output. */
+  const onOutputScroll = (): void => {
+    const box = outputBox.current
+    /* v8 ignore next -- the handler is attached to the element the ref holds */
+    if (box === null) return
+    following.current = box.scrollHeight - box.scrollTop - box.clientHeight < 8
+  }
+
   const select = (paneId: HerdrPaneId): void => {
     setSelected(paneId)
     setSelection(selection + 1)
+    following.current = true
     setFailure(undefined)
     setOutput(undefined)
   }
@@ -334,14 +368,21 @@ export function HerdrPanel({
   // itself, so only the prompt box is withheld for a plain shell.
   const agentHosted = selectedPane !== undefined && view !== undefined
     && hostedAgent(selectedPane, view.agents) !== undefined
-  /** Send the current draft to the selected pane's agent. */
+  /** Send the current draft to the selected pane's agent, then show the pane's reaction. */
   const send = (paneId: HerdrPaneId): void => {
     const text = draft
     void run(async () => {
       const result = await prompt(paneId, text)
       if (result.ok) setDraft('')
       return result
-    })
+    }).then(() => load(paneId))
+  }
+
+  /** Submit the prompt form: Enter in the box or the Send button. */
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault()
+    if (selected === undefined || !agentHosted || pending || draft.trim() === '') return
+    send(selected)
   }
 
   return (
@@ -392,7 +433,7 @@ export function HerdrPanel({
                           ? <p className={css.empty}>{t('outputNotFound')}</p>
                           : (
                             <>
-                              <pre className={css.output} data-herdr-output>{shown.text === '' ? t('outputEmpty') : shown.text}</pre>
+                              <pre ref={outputBox} className={css.output} data-herdr-output onScroll={onOutputScroll}>{shown.text === '' ? t('outputEmpty') : shown.text}</pre>
                               {shown.truncated && <p className={css.empty}>{t('outputTruncated')}</p>}
                             </>
                           )}
@@ -401,7 +442,7 @@ export function HerdrPanel({
                       with one; without a selection the panel asks for one. */}
                   {selected !== undefined && <div className={css.controls}>
                     {failure !== undefined && <p className={css.error} role="alert">{failure}</p>}
-                    <div className={css.promptRow}>
+                    <form className={css.promptRow} onSubmit={submit}>
                       <input
                         className={css.promptInput}
                         type="text"
@@ -412,14 +453,14 @@ export function HerdrPanel({
                         onChange={(event) => { setDraft(event.target.value) }}
                       />
                       <Button
+                        type="submit"
                         variant="primary"
                         size="sm"
                         disabled={!agentHosted || pending || draft.trim() === ''}
-                        onClick={() => { send(selected) }}
                       >
                         {pending ? t('sending') : t('send')}
                       </Button>
-                    </div>
+                    </form>
                     <div className={css.keyRow}>
                       <span className={css.keyLabel}>{t('keys')}</span>
                       {KEYS.map(({ key, dictionaryKey }) => (
@@ -428,7 +469,7 @@ export function HerdrPanel({
                           variant="outline"
                           size="sm"
                           disabled={pending}
-                          onClick={() => { void run(() => sendKeys(selected, [key])) }}
+                          onClick={() => { void run(() => sendKeys(selected, [key])).then(() => load(selected)) }}
                         >
                           {t(dictionaryKey)}
                         </Button>
