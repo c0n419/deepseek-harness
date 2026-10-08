@@ -68,6 +68,15 @@ const MODE_LABELS: Readonly<Record<string, string>> = {
 }
 
 /**
+ * Display label of an Agent preset id.
+ * @param presetId - Agent preset id.
+ * @returns the mode label, or the id itself for presets without one.
+ */
+export function modeLabel(presetId: string): string {
+  return MODE_LABELS[presetId] ?? presetId
+}
+
+/**
  * Escape text for Telegram HTML parse mode.
  * @param text - raw text.
  * @returns text safe inside Telegram HTML.
@@ -234,7 +243,7 @@ export class SessionTracker {
    */
   topicName(rootId: string): string {
     const root = this.nodes.get(rootId)
-    const mode = MODE_LABELS[root?.preset ?? ''] ?? root?.preset ?? 'Oturum'
+    const mode = root?.preset === undefined ? 'Oturum' : modeLabel(root.preset)
     const project = root?.cwd === undefined ? '' : ` · ${basename(root.cwd)}`
     return `[${mode}] ${root?.title ?? rootId.slice(0, 16)}${project}`.slice(0, 128)
   }

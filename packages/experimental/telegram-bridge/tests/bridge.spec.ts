@@ -123,6 +123,7 @@ async function setup(config: Partial<bridge.Config> = {}, wrap: FetchWrap = fake
     cardIntervalMs: 100,
     excerptChars: 100,
     pollTimeoutSeconds: 1,
+    draftTtlMinutes: 10,
     ...config,
   })
   await vi.waitFor(() => { expect(ctx.storageDomain.get('telegram_bridge')).toBeDefined() })
@@ -209,10 +210,10 @@ describe('telegram-bridge plugin', () => {
     expect(replies).toEqual([
       '🟢 [Oturum] lead-1',
       expect.stringContaining('🟢 Lead'),
-      'Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /oturumlar, /durum, /dur.',
+      'Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /yeni, /oturumlar, /durum, /dur.',
       '📨 İletildi.',
       '⏹ Durdurma isteği gönderildi.',
-      'Komutlar: /oturumlar, /durum, /dur. Konuya yazdığınız düz metin oturuma iletilir.',
+      'Komutlar: /yeni, /oturumlar, /durum, /dur. Konuya yazdığınız düz metin oturuma iletilir.',
     ])
     expect(controller.prompt).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'lead-1',
@@ -220,6 +221,20 @@ describe('telegram-bridge plugin', () => {
       content: [{ type: 'text', text: 'merhaba' }],
     }), expect.any(AbortSignal))
     expect(controller.cancel).toHaveBeenCalledWith({ sessionId: 'lead-1' })
+  })
+
+  it('routes /yeni, its buttons, and a typed project name to the launcher', async () => {
+    const { telegram } = await setup({ projectsDir: '/nowhere' })
+    telegram.send('/yeni@owsservebot 2FA ekle')
+    await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(1) })
+    const markup = telegram.sent('sendMessage')[0]?.params.reply_markup as { inline_keyboard: { callback_data: string }[][] }
+    telegram.press(markup.inline_keyboard[0]![0]!.callback_data)
+    telegram.press('nw:stale:p:0')
+    await vi.waitFor(() => { expect(telegram.sent('answerCallbackQuery')).toHaveLength(2) })
+    expect(telegram.sent('answerCallbackQuery').map(call => call.params.text)).toEqual([undefined, 'Bu seçim artık geçerli değil; /yeni ile yeniden başlayın.'])
+    telegram.send('demo')
+    await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(2) })
+    expect(telegram.sent('sendMessage')[1]?.params.text).toBe('⚠️ Proje kaydı kullanılamıyor.')
   })
 
   it('reports failed controls and a missing Session controller', async () => {
@@ -283,7 +298,7 @@ describe('telegram-bridge plugin', () => {
     expect(telegram.sent('createForumTopic')).toHaveLength(1)
     telegram.send('/durum', { thread: 999 })
     await vi.waitFor(() => { expect(telegram.sent('sendMessage')).toHaveLength(4) })
-    expect(telegram.sent('sendMessage')[3]?.params.text).toBe('Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /oturumlar, /durum, /dur.')
+    expect(telegram.sent('sendMessage')[3]?.params.text).toBe('Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /yeni, /oturumlar, /durum, /dur.')
   })
 
   it('settles an approval from the Telegram buttons and ignores stale or foreign presses', async () => {
@@ -408,7 +423,7 @@ describe('telegram-bridge plugin', () => {
 
   it('reads the token from the environment and rejects incomplete configuration', () => {
     const ctx = new Context()
-    const base = { chatId: CHAT, allowedUserIds: [OWNER], apiBaseUrl: 'x', sendIntervalMs: 0, cardIntervalMs: 100, excerptChars: 100, pollTimeoutSeconds: 1 }
+    const base = { chatId: CHAT, allowedUserIds: [OWNER], apiBaseUrl: 'x', sendIntervalMs: 0, cardIntervalMs: 100, excerptChars: 100, pollTimeoutSeconds: 1, draftTtlMinutes: 10 }
     vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
     expect(() => { bridge.apply(ctx, base) }).toThrow('set botToken or TELEGRAM_BOT_TOKEN')
     vi.stubEnv('TELEGRAM_BOT_TOKEN', 'env-token')

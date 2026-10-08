@@ -1273,7 +1273,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-telegram-bridge`
 
 - `inject`: `storageDomain`
-- `source`: [`packages/experimental/telegram-bridge/src/index.ts:28`](../packages/experimental/telegram-bridge/src/index.ts)
+- `source`: [`packages/experimental/telegram-bridge/src/index.ts:35`](../packages/experimental/telegram-bridge/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration. */
@@ -1296,6 +1296,10 @@ export interface Config {
   excerptChars: number
   /** Telegram long-poll timeout in seconds. */
   pollTimeoutSeconds: number
+  /** Absolute directory where `/yeni` creates new git projects; unset offers only registered projects. */
+  projectsDir?: string
+  /** Minutes an unfinished `/yeni` stays answerable. */
+  draftTtlMinutes: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-telegram-bridge -->

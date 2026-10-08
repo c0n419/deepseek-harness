@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-telegram-bridge` 让你通过 Telegram 在手机上跟踪并操控 DSH。任何模式下的每个根会话在运行第一个轮次后，都会在私有论坛群组中获得一个话题。置顶且自动更新的状态卡片显示 Lead、它的队友和子智能体、它们的模型和状态以及 token 用量。轮次完成、失败和提问会以通知形式到达。在话题中写下的文本会成为提示，`/dur` 会停止轮次，审批请求带有与 Web 对话框竞争作答的按钮。桥接通过轮询 Telegram 工作，不需要入站端口，并且只接受已配置群组中已配置用户的输入。
+`dsh-experimental-telegram-bridge` 让你通过 Telegram 在手机上跟踪并操控 DSH。任何模式下的每个根会话在运行第一个轮次后，都会在私有论坛群组中获得一个话题。置顶且自动更新的状态卡片显示 Lead、它的队友和子智能体、它们的模型和状态以及 token 用量。轮次完成、失败和提问会以通知形式到达。`/yeni` 在所选项目和模式中启动会话，话题中的文本会成为提示，`/dur` 会停止轮次，审批请求带有与 Web 对话框竞争作答的按钮。桥接通过轮询 Telegram 工作，不需要入站端口，并且只接受已配置群组中已配置用户的输入。
 
 ## 目录
 
@@ -56,6 +56,8 @@ kind: "package-reference"
 | `cardIntervalMs` | `5000` | 状态卡片刷新的间隔 |
 | `excerptChars` | `300` | 通知中引用的智能体文本的最大字符数 |
 | `pollTimeoutSeconds` | `30` | Telegram 长轮询超时 |
+| `projectsDir` | 未设置 | `/yeni` 创建新 git 项目的绝对目录；未设置时只提供已注册的项目 |
+| `draftTtlMinutes` | `10` | 未完成的 `/yeni` 保持可作答的分钟数 |
 
 ### Telegram 中会收到什么
 
@@ -74,13 +76,15 @@ kind: "package-reference"
 
 | 输入 | 效果 |
 |---|---|
+| `/yeni <task>` 或 `/new <task>` | 先用按钮询问项目，再询问模式；然后创建会话并把任务作为第一个提示排入 |
+| `➕ Yeni proje` 按钮，然后输入名称 | 创建 `<projectsDir>/<name>`，没有 `.git` 时运行 `git init`，并将其注册为项目 |
 | `/oturumlar` 或 `/sessions` | 列出跟踪中的会话 |
 | 话题中的 `/durum` 或 `/status` | 重新发送该话题的状态卡片 |
 | 话题中的 `/dur` 或 `/stop` | 取消根会话正在运行的轮次 |
 | 话题中的纯文本 | 作为提示排入根会话，并回复 `📨 İletildi.` |
 | 审批按钮 | 若该审批仍在等待，则作答 |
 
-提示和 `/dur` 需要 `sessionController` 服务；没有该服务时桥接会回复失败信息。
+提示、`/dur` 和 `/yeni` 需要 `sessionController` 服务，`/yeni` 还读取 `workspaceRegistry` 和 `agentPresets`；缺少时桥接会回复失败信息。模式为每个新会话单独选择，因此项目不会绑定到 Team 模式。
 
 -----
 
@@ -95,6 +99,7 @@ kind: "package-reference"
 | 文件 | 作用 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口、话题、卡片刷新、通知、命令、提示、审批 |
+| [`src/launcher.ts`](src/launcher.ts) | `/yeni` 草稿、项目创建、会话启动 |
 | [`src/tracker.ts`](src/tracker.ts) | 会话树、卡片文本、通知 |
 | [`src/telegram.ts`](src/telegram.ts) | Bot API 客户端和写入队列 |
 | [`src/storage.ts`](src/storage.ts) | 持久的话题和更新偏移记录 |
@@ -126,6 +131,7 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Web 对话框保持打开**——审批在 Telegram 中作答后，已打开的 Web 审批对话框仍然可见，其后的回答会被忽略，因为 `approval/request` 不向应答者提供上游已决定的信号。
+- **草稿仅在内存中**——DSH 重启时未完成的 `/yeni` 会丢失。
 - **无法回答提问**——`ask_user_question` 只以通知形式到达；请在 Web 界面中回答。
 - **非端到端加密**——Telegram 能读取机器人通信；标题、项目名称和摘录会离开本机。
 - **从空开始**——桥接启动后才从第一个事件开始跟踪会话；不会回放更早的历史。

@@ -3,8 +3,9 @@
  * group. Each root Session gets a topic with a self-editing status card covering its teammates
  * and subagents, and notifications for finished turns, failures, and questions. Text posted in a
  * topic becomes a prompt, `/dur` stops the running turn, and approval requests arrive with
- * buttons that race the Web UI. The bridge polls the Bot API, so it needs no inbound port, and
- * accepts input only from configured users in the configured chat.
+ * buttons that race the Web UI. `/yeni` starts a Session in a chosen project and mode. The
+ * bridge polls the Bot API, so it needs no inbound port, and accepts input only from configured
+ * users in the configured chat.
  * @module @deepseek-ai/dsh-experimental-telegram-bridge
  */
 
@@ -17,6 +18,7 @@ import z from '@deepseek-ai/schemastery'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
+import { Launcher } from './launcher.ts'
 import { bridgeDomain, type TopicRecord } from './storage.ts'
 import { delay, TelegramClient, TelegramError, type TelegramCallbackQuery, type TelegramMessage } from './telegram.ts'
 import { escapeHtml, type Notification, SessionTracker } from './tracker.ts'
@@ -49,6 +51,10 @@ export interface Config {
   excerptChars: number
   /** Telegram long-poll timeout in seconds. */
   pollTimeoutSeconds: number
+  /** Absolute directory where `/yeni` creates new git projects; unset offers only registered projects. */
+  projectsDir?: string
+  /** Minutes an unfinished `/yeni` stays answerable. */
+  draftTtlMinutes: number
 }
 
 export const Config: z<Config> = z.object({
@@ -61,6 +67,8 @@ export const Config: z<Config> = z.object({
   cardIntervalMs: z.number().min(100).default(5000),
   excerptChars: z.number().min(20).default(300),
   pollTimeoutSeconds: z.number().min(1).default(30),
+  projectsDir: z.string(),
+  draftTtlMinutes: z.number().min(1).default(10),
 })
 
 type BridgeDomain = Domain<typeof bridgeDomain>
@@ -104,6 +112,7 @@ class Bridge {
     private readonly config: Config,
     private readonly client: TelegramClient,
     readonly tracker: SessionTracker,
+    private readonly launcher: Launcher,
   ) {}
 
   attach(domain: BridgeDomain): void {
@@ -138,27 +147,33 @@ class Bridge {
 
   /** Handle one incoming message; messages from other chats or users are ignored. */
   async handle(message: TelegramMessage): Promise<void> {
-    if (!this.trusted(message.chat.id, message.from?.id)) return
+    const userId = message.from?.id
+    if (userId === undefined || !this.trusted(message.chat.id, userId)) return
     const text = message.text?.trim() ?? ''
     const command = text.startsWith('/') ? text.split(/\s+/u)[0]?.replace(/@.*$/u, '') : undefined
     const thread = message.message_thread_id
     const rootId = thread === undefined ? undefined : this.rootOfThread(thread)
+    const named = rootId === undefined && command === undefined && text !== '' ? await this.launcher.name(userId, text) : undefined
     let reply: string
     if (command === '/oturumlar' || command === '/sessions') {
       const roots = this.tracker.roots()
       reply = roots.length === 0
         ? 'Takip edilen oturum yok.'
         : roots.map(id => `${this.tracker.running(id) ? '🟢' : '⚪'} ${escapeHtml(this.tracker.topicName(id))}`).join('\n')
+    } else if (command === '/yeni' || command === '/new') {
+      reply = await this.launcher.start(userId, text.replace(/^\S+\s*/u, ''))
+    } else if (named !== undefined) {
+      reply = named
     } else if (rootId === undefined) {
       reply = command === undefined && text === ''
         ? ''
-        : 'Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /oturumlar, /durum, /dur.'
+        : 'Bu komutu veya mesajı bir oturumun konusunda kullanın. Komutlar: /yeni, /oturumlar, /durum, /dur.'
     } else if (command === '/durum' || command === '/status') {
       reply = this.tracker.card(rootId)
     } else if (command === '/dur' || command === '/stop') {
       reply = await this.control(() => this.controller().cancel({ sessionId: SessionId(rootId) }), '⏹ Durdurma isteği gönderildi.')
     } else if (command !== undefined) {
-      reply = 'Komutlar: /oturumlar, /durum, /dur. Konuya yazdığınız düz metin oturuma iletilir.'
+      reply = 'Komutlar: /yeni, /oturumlar, /durum, /dur. Konuya yazdığınız düz metin oturuma iletilir.'
     } else if (text === '') {
       reply = ''
     } else {
@@ -183,7 +198,16 @@ class Bridge {
   /** Settle a presented approval from its inline button. */
   async handleCallback(query: TelegramCallbackQuery): Promise<void> {
     if (!this.trusted(query.message?.chat.id, query.from.id)) return
-    const [kind, id, choice] = (query.data ?? '').split(':')
+    const data = query.data ?? ''
+    if (data.startsWith('nw:')) {
+      const live = await this.launcher.press(query.from.id, data.slice(3))
+      await this.client.enqueue('answerCallbackQuery', {
+        callback_query_id: query.id,
+        ...live ? {} : { text: 'Bu seçim artık geçerli değil; /yeni ile yeniden başlayın.' },
+      })
+      return
+    }
+    const [kind, id, choice] = data.split(':')
     const settle = kind === 'ap' && id !== undefined ? this.approvals.get(id) : undefined
     if (settle !== undefined) settle({ outcome: choice === 'a' ? 'allowed-once' : 'rejected', via: 'telegram' })
     await this.client.enqueue('answerCallbackQuery', {
@@ -375,7 +399,12 @@ export function apply(ctx: Context, config: Config): void {
   if (token === undefined || token === '') throw new Error('telegram-bridge: set botToken or TELEGRAM_BOT_TOKEN')
   if (config.allowedUserIds.length === 0) throw new Error('telegram-bridge: allowedUserIds must name at least one user')
   const client = new TelegramClient({ apiBaseUrl: config.apiBaseUrl, token, sendIntervalMs: config.sendIntervalMs })
-  const bridge = new Bridge(ctx, config, client, new SessionTracker({ excerptChars: config.excerptChars, webUrl: config.webUrl }))
+  const launcher = new Launcher(ctx, client, {
+    chatId: config.chatId,
+    projectsDir: config.projectsDir,
+    draftTtlMs: config.draftTtlMinutes * 60_000,
+  })
+  const bridge = new Bridge(ctx, config, client, new SessionTracker({ excerptChars: config.excerptChars, webUrl: config.webUrl }), launcher)
   ctx.on('session/event', (session, event) => { bridge.observe(session, event) })
   // Prepended so the bridge presents every approval and races the Web answerer behind it.
   ctx.on('approval/request', (request, next) => bridge.answerApproval(request, next), true)
