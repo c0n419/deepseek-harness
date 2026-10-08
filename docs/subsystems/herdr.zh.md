@@ -8,7 +8,7 @@
 
 Herdr 的服务器把工作区、标签、窗格与 agent 作为一份不属于任何 Session 的进程全局资源持有。因此该服务把它们作为 Remote 流而不是 Session 数据发布：`watch()` 先给出当前视图，再给出每一次合并后的变化，Client 重新加载后重新订阅，且不持久化任何内容。窗格文本不属于流；只有观察者正在显示的窗格会被读取，经由 `pane.read` 并拼接软换行。
 
-每条命令都以窗格为寻址对象，而不是 agent 名称。`focus(paneId)` 与 `sendKeys(paneId, keys)` 通过服务器的 `pane.focus` 与 `pane.send_keys` 驱动该窗格，因此未运行 agent 的窗格同样可以聚焦、同样接受按键；`prompt(paneId, text)` 走 `agent.prompt`，对没有 agent 占用的窗格，服务器以 `agent_not_found` 作答。`prompt`、`sendKeys` 与 `focus` 返回成功或带消息的拒绝码，因此面板把 `agent_not_found`、`blocked` 或被拒绝的按键当作普通状态而不是失败来渲染。`read(paneId)` 把已消失的窗格报告为 `notFound`，这是正常的竞态，其行数预算取自 `readLines` 字段。`sendKeys` 只接受固定的按键集合——Escape、Ctrl+C、Enter、Up、Down、Y 与 N——并在任何字节到达窗格之前校验。
+每条命令都以窗格为寻址对象，而不是 agent 名称。`focus(paneId)` 与 `sendKeys(paneId, keys)` 通过服务器的 `pane.focus` 与 `pane.send_keys` 驱动该窗格，因此未运行 agent 的窗格同样可以聚焦、同样接受按键；`prompt(paneId, text)` 走 `agent.prompt`，对没有 agent 占用的窗格，服务器以 `agent_not_found` 作答。`sendText(paneId, text)` 通过 `pane.send_text` 键入原始终端输入——终端模拟器为按键产生的字节——超过 `maxInputBytes` 的载荷以 `input_too_large` 拒绝且不转发任何部分。`prompt`、`sendKeys`、`sendText` 与 `focus` 返回成功或带消息的拒绝码，因此面板把 `agent_not_found`、`blocked` 或被拒绝的按键当作普通状态而不是失败来渲染。`read(paneId)` 返回窗格带颜色序列的近期行以及来自 `pane.layout` 的窗格列数，使终端渲染器按与窗格相同的位置换行；它把已消失的窗格报告为 `notFound`，这是正常的竞态，其行数预算取自 `readLines` 字段。`sendKeys` 只接受固定的按键集合——Escape、Ctrl+C、Enter、Up、Down、Y 与 N——并在任何字节到达窗格之前校验。
 
 ## 传输与连接状态
 
@@ -22,7 +22,7 @@ Herdr 的服务器把工作区、标签、窗格与 agent 作为一份不属于�
 
 ## 配置
 
-`socketPath` 选择 API socket；省略时依次解析 `HERDR_SOCKET_PATH` 与 Herdr 配置目录下默认会话的 socket，配置为相对路径时在构造期报错。`requestTimeoutMs`、`reconnectInitialMs`、`reconnectMaxMs`、`maxFrameBytes`、`readLines`、`outputCoalesceMs` 与 `outputRefreshMs` 约束传输、重试节奏、重新读取窗口与面板刷新间隔，`expectedProtocol` 指明本构建所说的 socket 协议。
+`socketPath` 选择 API socket；省略时依次解析 `HERDR_SOCKET_PATH` 与 Herdr 配置目录下默认会话的 socket，配置为相对路径时在构造期报错。`requestTimeoutMs`、`reconnectInitialMs`、`reconnectMaxMs`、`maxFrameBytes`、`readLines`、`outputCoalesceMs`、`outputRefreshMs` 与 `maxInputBytes` 约束传输、重试节奏、重新读取窗口、面板刷新间隔与单次键入输入载荷，`expectedProtocol` 指明本构建所说的 socket 协议。
 
 ## 设计依据
 
@@ -54,8 +54,9 @@ The connection is established lazily on the first watch or command, because a de
 @Remote({ mode: 'stream' }) async *watch(signal: AbortSignal): AsyncIterable<HerdrView>
 
 /**
- * Read one pane's recent text with soft wraps joined. The server pushes no
- * text, so this stays a lazy read of the pane a caller displays.
+ * Read one pane's recent output as terminal rows with their colors, plus the
+ * pane's column count so a renderer wraps exactly as the pane does. The
+ * server pushes no text, so this stays a lazy read of the pane a caller displays.
  *
  * The line budget is `readLines` from configuration rather than a parameter:
  * an optional Remote parameter is not expressible through the generated
@@ -64,6 +65,17 @@ The connection is established lazily on the first watch or command, because a de
  * @returns the pane's text, or `{notFound: true}` when the pane is gone.
  */
 @Remote async read(paneId: HerdrPaneId): Promise<HerdrReadResult>
+
+/**
+ * Type raw terminal input into a pane: the bytes a terminal emulator emits for
+ * keystrokes, arrows, and control characters, delivered through
+ * `pane.send_text` unchanged. A payload above `maxInputBytes` is refused as a
+ * result, never forwarded in part.
+ * @param paneId - pane receiving the input.
+ * @param text - raw input, including escape sequences.
+ * @returns success, `input_too_large`, or the server's refusal code.
+ */
+@Remote async sendText(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>
 
 /**
  * Submit one prompt to the agent occupying a pane.

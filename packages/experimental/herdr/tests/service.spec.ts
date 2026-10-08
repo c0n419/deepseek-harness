@@ -152,7 +152,7 @@ describe('bootstrap and the view stream', () => {
         expect(matched(frames, view => view.connection.status === 'connected').workspaces[0]?.label).toBe('repo')
         // readLines default reached the wire, proving the schema-filled value is used.
         await service.read(HerdrPaneId('w1:p1'))
-        expect(server.requests.at(-1)?.params).toMatchObject({ lines: 400 })
+        expect(server.requests.findLast(request => request.method === 'pane.read')?.params).toMatchObject({ lines: 400 })
       })
     } finally {
       await server.close()
@@ -218,7 +218,7 @@ describe('bootstrap and the view stream', () => {
       }, async (service) => {
         await collect(service, view => view.connection.status === 'connected')
         await service.read(HerdrPaneId('w1:p1'))
-        expect(server.requests.at(-1)?.params).toMatchObject({ lines: 33 })
+        expect(server.requests.findLast(request => request.method === 'pane.read')?.params).toMatchObject({ lines: 33 })
       })
     } finally {
       await server.close()
@@ -559,13 +559,40 @@ describe('commands', () => {
       await withService({ socketPath: server.socketPath, readLines: 25 }, async (service) => {
         await collect(service, (view, count) => view.connection.status === 'connected' && count >= 1)
         server.answer(undefined, 'session.snapshot')
-        expect(await service.read(HerdrPaneId('w1:p1'))).toEqual({ paneId: 'w1:p1', text: 'read w1:p1', revision: 7, truncated: false })
+        expect(await service.read(HerdrPaneId('w1:p1'))).toEqual({ paneId: 'w1:p1', text: 'read w1:p1', cols: 132, revision: 7, truncated: false })
         // The line budget comes from configuration: no Remote parameter carries it.
-        expect(server.requests.at(-1)?.params).toEqual({ pane_id: 'w1:p1', source: 'recent_unwrapped', lines: 25 })
+        // The read keeps colors, and the width comes from the pane's layout rectangle.
+        expect(server.requests.findLast(request => request.method === 'pane.read')?.params)
+          .toEqual({ pane_id: 'w1:p1', source: 'recent', format: 'ansi', strip_ansi: false, lines: 25 })
+        expect(server.requests.at(-1)).toMatchObject({ method: 'pane.layout', params: { pane_id: 'w1:p1' } })
+        server.answer({ result: { type: 'pane_layout', layout: { panes: [] } } }, 'pane.layout')
+        expect(await service.read(HerdrPaneId('w1:p1'))).toEqual({ notFound: true })
+        server.answer({ error: { code: 'pane_not_found', message: 'gone' } }, 'pane.layout')
+        expect(await service.read(HerdrPaneId('w1:p1'))).toEqual({ notFound: true })
+        server.answer({ error: { code: 'invalid_request', message: 'no layout' } }, 'pane.layout')
+        await expect(service.read(HerdrPaneId('w1:p1'))).rejects.toThrow('pane.layout failed: no layout')
         server.answer({ error: { code: 'pane_not_found', message: 'gone' } }, 'pane.read')
         expect(await service.read(HerdrPaneId('w9:p9'))).toEqual({ notFound: true })
         server.answer({ error: { code: 'invalid_request', message: 'bad source' } }, 'pane.read')
         await expect(service.read(HerdrPaneId('w1:p1'))).rejects.toThrow('pane.read failed: bad source')
+      })
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('types raw input into a pane and refuses a payload above maxInputBytes', async () => {
+    const server = await startFakeHerdr()
+    server.answer({ result: SNAPSHOT }, 'session.snapshot')
+    try {
+      await withService({ socketPath: server.socketPath, maxInputBytes: 4 }, async (service) => {
+        await collect(service, (view, count) => view.connection.status === 'connected' && count >= 1)
+        expect(await service.sendText(HerdrPaneId('w1:p1'), '\u001b[A')).toEqual({ ok: true })
+        expect(server.requests.at(-1)).toMatchObject({ method: 'pane.send_text', params: { pane_id: 'w1:p1', text: '\u001b[A' } })
+        const before = server.requests.length
+        // Five bytes: "ab" plus a three-byte character, one byte over the ceiling.
+        expect(await service.sendText(HerdrPaneId('w1:p1'), 'ab€')).toMatchObject({ ok: false, code: 'input_too_large' })
+        expect(server.requests.length).toBe(before)
       })
     } finally {
       await server.close()

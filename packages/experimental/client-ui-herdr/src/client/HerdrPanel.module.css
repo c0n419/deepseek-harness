@@ -263,16 +263,12 @@
   flex: none;
 }
 
-.output {
+.terminal {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  overflow: auto;
-  font-family: var(--dsw-font-markdown-code-block-small);
-  font-size: 12px;
-  line-height: 16px;
-  white-space: pre;
-  color: var(--dsw-alias-label-secondary);
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--dsw-radius-lg);
 }
 
 .controls {

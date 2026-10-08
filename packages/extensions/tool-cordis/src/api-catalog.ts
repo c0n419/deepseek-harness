@@ -1250,9 +1250,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async read(paneId: HerdrPaneId): Promise<HerdrReadResult>',
-        description: 'Read one pane\'s recent text with soft wraps joined. The server pushes no text, so this stays a lazy read of the pane a caller displays.\n\nThe line budget is `readLines` from configuration rather than a parameter: an optional Remote parameter is not expressible through the generated descriptor, so a caller could not omit it.',
+        description: 'Read one pane\'s recent output as terminal rows with their colors, plus the pane\'s column count so a renderer wraps exactly as the pane does. The server pushes no text, so this stays a lazy read of the pane a caller displays.\n\nThe line budget is `readLines` from configuration rather than a parameter: an optional Remote parameter is not expressible through the generated descriptor, so a caller could not omit it.',
         parameters: [{ name: 'paneId', description: 'pane to read.' }],
         returns: 'the pane\'s text, or `{notFound: true}` when the pane is gone.',
+      },
+      {
+        signature: '@Remote async sendText(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>',
+        description: 'Type raw terminal input into a pane: the bytes a terminal emulator emits for keystrokes, arrows, and control characters, delivered through `pane.send_text` unchanged. A payload above `maxInputBytes` is refused as a result, never forwarded in part.',
+        parameters: [{ name: 'paneId', description: 'pane receiving the input.' }, { name: 'text', description: 'raw input, including escape sequences.' }],
+        returns: 'success, `input_too_large`, or the server\'s refusal code.',
       },
       {
         signature: '@Remote async prompt(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>',
@@ -5441,7 +5447,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'HerdrRead',
-    declaration: 'export interface HerdrRead {\n    paneId: HerdrPaneId;\n    text: string;\n    revision: number;\n    truncated: boolean;\n}',
+    declaration: 'export interface HerdrRead {\n    paneId: HerdrPaneId;\n    text: string;\n    cols: number;\n    revision: number;\n    truncated: boolean;\n}',
   },
   {
     name: 'HerdrReadNotFound',

@@ -84,6 +84,8 @@ function defaultAnswer(method: string, params: Record<string, unknown>): Answer 
       return { result: { type: 'session_snapshot', snapshot: { workspaces: [], tabs: [], panes: [], agents: [] } } }
     case 'pane.read':
       return { result: { type: 'pane_read', read: { text: `read ${String(params.pane_id)}`, revision: 7, truncated: false } } }
+    case 'pane.layout':
+      return { result: { type: 'pane_layout', layout: { panes: [{ pane_id: params.pane_id, rect: { x: 0, y: 0, width: 132, height: 40 } }] } } }
     case 'events.subscribe':
       return { result: { type: 'subscription_started' } }
     default:

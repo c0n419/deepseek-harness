@@ -69,7 +69,7 @@ it('loads from a cordis.yml row, takes the row socket path, and serves a view', 
     // The row's config reached the transport, not a module default.
     server.answer(undefined, 'session.snapshot')
     expect(await context.herdr.read(HerdrPaneId('w1:p1'))).toMatchObject({ text: 'read w1:p1' })
-    expect(server.requests.at(-1)?.params).toMatchObject({ lines: 12 })
+    expect(server.requests.findLast(request => request.method === 'pane.read')?.params).toMatchObject({ lines: 12 })
   } finally {
     await server.close()
   }

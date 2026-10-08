@@ -90,6 +90,11 @@ function registerUi(ctx: Context): void {
       if (!result.ok) throw result.error
       return result.value
     },
+    sendText: async (paneId, text) => {
+      const result = await ctx.remote.herdr.sendText(paneId, text)
+      if (!result.ok) throw result.error
+      return result.value
+    },
     focus: async (paneId) => {
       const result = await ctx.remote.herdr.focus(paneId)
       if (!result.ok) throw result.error

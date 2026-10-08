@@ -5,7 +5,7 @@
  * and reaches the Host only through the injected command faces.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   Button, IconRefreshOutlineRegular, IconWarningTriangleOutlineRegular,
@@ -17,6 +17,7 @@ import type {
 } from '@deepseek-ai/dsh-experimental-herdr/types'
 import { NS, type HerdrKey as CopyKey } from './locales.ts'
 import css from './HerdrPanel.module.css'
+import { PaneTerminal } from './PaneTerminal.tsx'
 
 /** Translate function bound to this panel's namespace. */
 type Translate = (key: CopyKey, params?: Record<string, unknown>) => string
@@ -45,6 +46,13 @@ export interface HerdrPanelInjected {
    * @returns success, or the rejection.
    */
   sendKeys(paneId: HerdrPaneId, keys: readonly HerdrKey[]): Promise<HerdrCommandResult>
+  /**
+   * Type raw terminal input into a pane.
+   * @param paneId - pane receiving the input.
+   * @param text - bytes the terminal screen emitted, escape sequences included.
+   * @returns success, or the refusal.
+   */
+  sendText(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult>
   /**
    * Move the server's focus to a pane, agent-hosted or not.
    * @param paneId - pane to focus.
@@ -264,7 +272,7 @@ function Notice({ connection, t, onRetry }: {
  * @returns the panel element.
  */
 export function HerdrPanel({
-  useView, read, prompt, sendKeys, focus, restart, t,
+  useView, read, prompt, sendKeys, sendText, focus, restart, t,
 }: HerdrPanelProps): ReactNode {
   const view = useView(value => value)
   const [selected, setSelected] = useState<HerdrPaneId | undefined>(undefined)
@@ -278,13 +286,16 @@ export function HerdrPanel({
   // Request order: only the newest read may land, so a slow read of a pane the
   // human already left cannot overwrite the pane now on screen.
   const reads = useRef(0)
-  // One read at a time: a refresh tick that lands while a read is in flight is
-  // skipped instead of queued, so a slow server cannot accumulate requests.
-  const reading = useRef(false)
-  const outputBox = useRef<HTMLPreElement>(null)
-  // Whether the output box follows new text. Scrolling up to read history
-  // releases it; scrolling back to the bottom, or picking a pane, re-engages it.
-  const following = useRef(true)
+  // One read per pane at a time. A re-read of the pane already being read is
+  // remembered and runs when that read settles, so a refresh tick or a keystroke
+  // never stacks requests and never gets lost; a different pane reads at once.
+  const reading = useRef<HerdrPaneId | undefined>(undefined)
+  const queuedRead = useRef(false)
+  // Typed input is sent strictly in order: each socket call is independent, so
+  // concurrent sends could reorder keystrokes. Input arriving during a send is
+  // batched into the next one.
+  const typed = useRef('')
+  const typing = useRef(false)
 
   const selectedPane = view?.panes.find(pane => pane.paneId === selected)
   const shown = selected !== undefined && output?.paneId === selected ? output.value : undefined
@@ -308,9 +319,13 @@ export function HerdrPanel({
   }
 
   const load = async (paneId: HerdrPaneId): Promise<void> => {
+    if (reading.current === paneId) {
+      queuedRead.current = true
+      return
+    }
     const request = reads.current + 1
     reads.current = request
-    reading.current = true
+    reading.current = paneId
     try {
       const value = await read(paneId)
       if (request !== reads.current) return
@@ -320,7 +335,14 @@ export function HerdrPanel({
       if (request !== reads.current) return
       setFailure(t('commandFailed', { message: messageOf(error) }))
     } finally {
-      if (request === reads.current) reading.current = false
+      // Only the newest read owns the in-flight slot; a superseded one settles silently.
+      if (request === reads.current) {
+        reading.current = undefined
+        if (queuedRead.current) {
+          queuedRead.current = false
+          void load(paneId)
+        }
+      }
     }
   }
 
@@ -336,30 +358,40 @@ export function HerdrPanel({
   useEffect(() => {
     if (selected === undefined || refreshMs === undefined) return
     const timer = setInterval(() => {
-      if (!reading.current) void load(selected)
+      if (reading.current !== selected) void load(selected)
     }, refreshMs)
     return () => { clearInterval(timer) }
   }, [selected, refreshMs])
 
-  // Keep the newest output in sight while the box is following.
-  const shownText = shown !== undefined && 'text' in shown ? shown.text : undefined
-  useLayoutEffect(() => {
-    const box = outputBox.current
-    if (box !== null && following.current) box.scrollTop = box.scrollHeight
-  }, [shownText])
+  /** Send everything typed so far, in order, then show the pane's echo. */
+  const flushTyped = async (paneId: HerdrPaneId): Promise<void> => {
+    typing.current = true
+    try {
+      while (typed.current !== '') {
+        const batch = typed.current
+        typed.current = ''
+        const result = await sendText(paneId, batch)
+        settle(result)
+      }
+    } catch (error: unknown) {
+      typed.current = ''
+      setFailure(t('commandFailed', { message: messageOf(error) }))
+    } finally {
+      typing.current = false
+    }
+    await load(paneId)
+  }
 
-  /** Track whether the human scrolled away from the newest output. */
-  const onOutputScroll = (): void => {
-    const box = outputBox.current
-    /* v8 ignore next -- the handler is attached to the element the ref holds */
-    if (box === null) return
-    following.current = box.scrollHeight - box.scrollTop - box.clientHeight < 8
+  /** Queue raw input from the terminal screen for the selected pane. */
+  const type = (paneId: HerdrPaneId, data: string): void => {
+    typed.current += data
+    if (!typing.current) void flushTyped(paneId)
   }
 
   const select = (paneId: HerdrPaneId): void => {
     setSelected(paneId)
     setSelection(selection + 1)
-    following.current = true
+    typed.current = ''
     setFailure(undefined)
     setOutput(undefined)
   }
@@ -425,7 +457,7 @@ export function HerdrPanel({
                         </Button>
                       )}
                     </div>
-                    {selectedPane === undefined
+                    {selectedPane === undefined || selected === undefined
                       ? <p className={css.empty}>{t('selectedPane')}</p>
                       : shown === undefined
                         ? <p className={css.empty}>{t('reading')}</p>
@@ -433,7 +465,13 @@ export function HerdrPanel({
                           ? <p className={css.empty}>{t('outputNotFound')}</p>
                           : (
                             <>
-                              <pre ref={outputBox} className={css.output} data-herdr-output onScroll={onOutputScroll}>{shown.text === '' ? t('outputEmpty') : shown.text}</pre>
+                              <PaneTerminal
+                                key={selected}
+                                text={shown.text}
+                                cols={shown.cols}
+                                label={t('terminal', { id: selected })}
+                                onInput={(data) => { type(selected, data) }}
+                              />
                               {shown.truncated && <p className={css.empty}>{t('outputTruncated')}</p>}
                             </>
                           )}

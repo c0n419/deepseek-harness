@@ -25,11 +25,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-与 Typert 组合，并由客户端装配挂载生成的 `/remote` 贡献。`socketPath` 指定 API 套接字；省略时依次读取 `HERDR_SOCKET_PATH`、`<XDG_CONFIG_HOME 或 ~/.config>/herdr/herdr.sock`。`requestTimeoutMs` 限定一次往返与订阅握手；`reconnectInitialMs` 与 `reconnectMaxMs` 限定重连退避；`maxFrameBytes` 限定单条回复或事件行；`readLines` 设定惰性读取的行数预算；`outputCoalesceMs` 是将一阵事件合并为一帧发布与一次重读的窗口；`outputRefreshMs` 随每个视图下发，是面板重新读取所显示面板的间隔，因为普通 shell 输出时 Herdr 不推送事件；`expectedProtocol` 是本构建所讲的套接字协议号。
+与 Typert 组合，并由客户端装配挂载生成的 `/remote` 贡献。`socketPath` 指定 API 套接字；省略时依次读取 `HERDR_SOCKET_PATH`、`<XDG_CONFIG_HOME 或 ~/.config>/herdr/herdr.sock`。`requestTimeoutMs` 限定一次往返与订阅握手；`reconnectInitialMs` 与 `reconnectMaxMs` 限定重连退避；`maxFrameBytes` 限定单条回复或事件行；`readLines` 设定惰性读取的行数预算；`outputCoalesceMs` 是将一阵事件合并为一帧发布与一次重读的窗口；`maxInputBytes` 限制单次 `sendText` 载荷；`outputRefreshMs` 随每个视图下发，是面板重新读取所显示面板的间隔，因为普通 shell 输出时 Herdr 不推送事件；`expectedProtocol` 是本构建所讲的套接字协议号。
 
 套接字上没有服务端时，服务保持加载并报告 `unavailable` 连接，因为 Herdr 通常晚于 harness 启动，且服务端缺失不属于配置错误。服务端协议号不同时报告 `incompatible` 连接并给出两个数字，而不是继续执行；下一次 watch 会重新探测，因此服务端升级无需重新加载页面即可恢复。
 
-`watch` 流每发布一帧产出一个完整的 `HerdrView`。所有命令都以窗格为目标：`read(paneId)` 返回窗格近期文本（行数预算来自 `readLines`），窗格已关闭时返回 `{ notFound: true }`；`focus(paneId)` 与 `sendKeys(paneId, keys)` 通过服务端的 `pane.*` 方法驱动该窗格，因此没有代理的 shell 也能被聚焦并接受按键；`prompt(paneId, text)` 提交给占用该窗格的代理。`prompt`、`sendKeys` 与 `focus` 在目标缺失或被阻塞时不会抛出，而是返回 `{ ok: false, code, message }`，对无代理窗格发起 prompt 会以该形式返回 `agent_not_found`。
+`watch` 流每发布一帧产出一个完整的 `HerdrView`。所有命令都以窗格为目标：`read(paneId)` 返回窗格带颜色序列的近期行以及来自布局的窗格列数（行数预算来自 `readLines`），窗格已关闭时返回 `{ notFound: true }`；`sendText(paneId, text)` 通过 `pane.send_text` 向窗格键入原始终端输入，超过 `maxInputBytes` 的载荷以 `input_too_large` 拒绝；`focus(paneId)` 与 `sendKeys(paneId, keys)` 通过服务端的 `pane.*` 方法驱动该窗格，因此没有代理的 shell 也能被聚焦并接受按键；`prompt(paneId, text)` 提交给占用该窗格的代理。`prompt`、`sendKeys`、`sendText` 与 `focus` 在目标缺失或被阻塞时不会抛出，而是返回 `{ ok: false, code, message }`，对无代理窗格发起 prompt 会以该形式返回 `agent_not_found`。
 
 -----
 

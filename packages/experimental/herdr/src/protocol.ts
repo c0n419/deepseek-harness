@@ -18,7 +18,7 @@ import {
 import { HERDR_KEYS } from './types.ts'
 import type { HerdrAgentStatus as AgentStatus } from './types.ts'
 import type {
-  HerdrAgent, HerdrConnection, HerdrPane, HerdrReadResult, HerdrTab, HerdrWorkspace,
+  HerdrAgent, HerdrConnection, HerdrPane, HerdrRead, HerdrTab, HerdrWorkspace,
 } from './types.ts'
 
 /** A frame the server could not be parsed as either a result or an error. */
@@ -248,19 +248,39 @@ export function parseSnapshot(result: unknown): ParsedView {
  * Decode a `pane.read` result.
  * @param paneId - the pane that was read, echoed into the result.
  * @param result - parsed `pane.read` result payload.
+ * @param cols - the pane's terminal columns, from its layout rectangle.
  * @returns the pane's text with its revision.
  * @throws HerdrProtocolError when the payload is not a pane read.
  */
-export function parseRead(paneId: HerdrPaneId, result: unknown): HerdrReadResult {
+export function parseRead(paneId: HerdrPaneId, result: unknown, cols: number): HerdrRead {
   const body = asRecord(result, 'read result')
   if (body.type !== 'pane_read') throw new HerdrProtocolError(`herdr: expected pane_read, received ${String(body.type)}`)
   const read = asRecord(body.read, 'read')
   return {
     paneId,
     text: asString(read.text, 'read.text'),
+    cols,
     revision: asNumber(read.revision, 'read.revision'),
     truncated: asBoolean(read.truncated, 'read.truncated'),
   }
+}
+
+/**
+ * Find one pane's terminal width in a `pane.layout` result.
+ * @param paneId - the pane whose rectangle is wanted.
+ * @param result - parsed `pane.layout` result payload.
+ * @returns the pane's columns, or undefined when the layout no longer holds the pane.
+ * @throws HerdrProtocolError when the payload is not a pane layout.
+ */
+export function parseLayoutCols(paneId: HerdrPaneId, result: unknown): number | undefined {
+  const body = asRecord(result, 'layout result')
+  if (body.type !== 'pane_layout') throw new HerdrProtocolError(`herdr: expected pane_layout, received ${String(body.type)}`)
+  const layout = asRecord(body.layout, 'layout')
+  for (const entry of asArray(layout.panes, 'layout.panes')) {
+    const pane = asRecord(entry, 'layout pane')
+    if (pane.pane_id === paneId) return asNumber(asRecord(pane.rect, 'layout pane rect').width, 'layout pane rect.width')
+  }
+  return undefined
 }
 
 /**

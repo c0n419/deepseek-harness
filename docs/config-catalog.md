@@ -996,7 +996,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-experimental-herdr`
 
-- `source`: [`packages/experimental/herdr/src/index.ts:79`](../packages/experimental/herdr/src/index.ts)
+- `source`: [`packages/experimental/herdr/src/index.ts:82`](../packages/experimental/herdr/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: everything a deployment may vary. */
@@ -1027,6 +1027,8 @@ export interface Config {
    * re-reading; omission defaults to 1000.
    */
   outputRefreshMs?: number
+  /** Maximum UTF-8 bytes one `sendText` call forwards to a pane; omission defaults to 65536. */
+  maxInputBytes?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-herdr -->

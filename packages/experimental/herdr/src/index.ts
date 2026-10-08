@@ -21,7 +21,7 @@ import z from '@deepseek-ai/schemastery'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { HerdrClient, isRefusal } from './connection.ts'
 import type { HerdrCallResult } from './connection.ts'
-import { asError, connectionOf, invalidKey, parseRead, parseSnapshot, viewSubscriptions } from './protocol.ts'
+import { asError, connectionOf, invalidKey, parseLayoutCols, parseRead, parseSnapshot, viewSubscriptions } from './protocol.ts'
 import type { ParsedView } from './protocol.ts'
 import type {
   HerdrCommandResult, HerdrConnection, HerdrKey, HerdrPaneId, HerdrReadResult, HerdrReadSource,
@@ -75,6 +75,9 @@ const DEFAULT_OUTPUT_COALESCE_MS = 120
 /** Default interval a panel re-reads its selected pane at, in milliseconds. */
 const DEFAULT_OUTPUT_REFRESH_MS = 1_000
 
+/** Default ceiling for one `sendText` payload, in UTF-8 bytes. */
+const DEFAULT_MAX_INPUT_BYTES = 65_536
+
 /** Plugin configuration: everything a deployment may vary. */
 export interface Config {
   /**
@@ -103,6 +106,8 @@ export interface Config {
    * re-reading; omission defaults to 1000.
    */
   outputRefreshMs?: number
+  /** Maximum UTF-8 bytes one `sendText` call forwards to a pane; omission defaults to 65536. */
+  maxInputBytes?: number
 }
 
 /**
@@ -185,6 +190,7 @@ export default class HerdrService extends TypertRemoteService {
     readLines: z.number().default(DEFAULT_READ_LINES),
     outputCoalesceMs: z.number().default(DEFAULT_OUTPUT_COALESCE_MS),
     outputRefreshMs: z.number().default(DEFAULT_OUTPUT_REFRESH_MS),
+    maxInputBytes: z.number().default(DEFAULT_MAX_INPUT_BYTES),
   })
 
   private readonly config: Resolved
@@ -227,6 +233,7 @@ export default class HerdrService extends TypertRemoteService {
     requirePositive(this.config.readLines, 'readLines')
     requirePositive(this.config.outputCoalesceMs, 'outputCoalesceMs')
     requirePositive(this.config.outputRefreshMs, 'outputRefreshMs')
+    requirePositive(this.config.maxInputBytes, 'maxInputBytes')
     this.socketPath = resolveSocketPath(config, process.env)
     this.reconnectDelay = this.config.reconnectInitialMs
     this.client = new HerdrClient({
@@ -265,8 +272,9 @@ export default class HerdrService extends TypertRemoteService {
   }
 
   /**
-   * Read one pane's recent text with soft wraps joined. The server pushes no
-   * text, so this stays a lazy read of the pane a caller displays.
+   * Read one pane's recent output as terminal rows with their colors, plus the
+   * pane's column count so a renderer wraps exactly as the pane does. The
+   * server pushes no text, so this stays a lazy read of the pane a caller displays.
    *
    * The line budget is `readLines` from configuration rather than a parameter:
    * an optional Remote parameter is not expressible through the generated
@@ -276,17 +284,45 @@ export default class HerdrService extends TypertRemoteService {
    */
   @Remote
   async read(paneId: HerdrPaneId): Promise<HerdrReadResult> {
-    const source: HerdrReadSource = 'recent_unwrapped'
+    const source: HerdrReadSource = 'recent'
     const outcome = await this.invoke('pane.read', {
       pane_id: paneId,
       source,
+      format: 'ansi',
+      strip_ansi: false,
       lines: this.config.readLines,
     })
     if (isRefusal(outcome)) {
       if (outcome.code === 'pane_not_found') return { notFound: true }
       throw new Error(`herdr: pane.read failed: ${outcome.message}`)
     }
-    return parseRead(paneId, outcome.result)
+    const layout = await this.invoke('pane.layout', { pane_id: paneId })
+    if (isRefusal(layout)) {
+      if (layout.code === 'pane_not_found') return { notFound: true }
+      throw new Error(`herdr: pane.layout failed: ${layout.message}`)
+    }
+    const cols = parseLayoutCols(paneId, layout.result)
+    // The pane closed between the two calls: the same race a refused read reports.
+    if (cols === undefined) return { notFound: true }
+    return parseRead(paneId, outcome.result, cols)
+  }
+
+  /**
+   * Type raw terminal input into a pane: the bytes a terminal emulator emits for
+   * keystrokes, arrows, and control characters, delivered through
+   * `pane.send_text` unchanged. A payload above `maxInputBytes` is refused as a
+   * result, never forwarded in part.
+   * @param paneId - pane receiving the input.
+   * @param text - raw input, including escape sequences.
+   * @returns success, `input_too_large`, or the server's refusal code.
+   */
+  @Remote
+  async sendText(paneId: HerdrPaneId, text: string): Promise<HerdrCommandResult> {
+    const bytes = Buffer.byteLength(text, 'utf8')
+    if (bytes > this.config.maxInputBytes) {
+      return { ok: false, code: 'input_too_large', message: `herdr: input of ${String(bytes)} bytes exceeds maxInputBytes ${String(this.config.maxInputBytes)}` }
+    }
+    return await this.command('pane.send_text', { pane_id: paneId, text })
   }
 
   /**

@@ -87,6 +87,7 @@ describe.skipIf(!built)('generated Herdr Remote descriptors', () => {
       ['herdr/prompt', ['paneId', 'text']],
       ['herdr/read', ['paneId']],
       ['herdr/sendKeys', ['paneId', 'keys']],
+      ['herdr/sendText', ['paneId', 'text']],
       // A stream method carries its cancellation signal as a separate
       // `cancellation` field, not among the positional parameters, so `watch` is
       // callable with no arguments.

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -11,11 +11,35 @@ import type {
 import { HerdrPanel, type HerdrPanelInjected, type HerdrPanelProps } from '../src/client/HerdrPanel.tsx'
 import { zh } from '../src/client/locales.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { screenBytes } from '../src/client/PaneTerminal.tsx'
+import { fit, resetFakeTerminals, terminals, type FakeTerminal } from './fake-xterm.client.ts'
+
+vi.mock('@xterm/xterm', async () => ({ Terminal: (await import('./fake-xterm.client.ts')).FakeTerminal }))
+vi.mock('@xterm/addon-fit', async () => ({ FitAddon: (await import('./fake-xterm.client.ts')).FakeFit }))
+
+let observed: (() => void) | undefined
+beforeEach(() => {
+  resetFakeTerminals()
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { observed = callback }
+    observe(): void {}
+    disconnect(): void {}
+  })
+})
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  observed = undefined
 })
+
+/** The screen of the pane currently shown. */
+function shownTerminal(): FakeTerminal {
+  const terminal = terminals.at(-1)
+  if (terminal === undefined) throw new Error('no terminal was mounted')
+  return terminal
+}
 
 const workspace: HerdrWorkspace = {
   workspaceId: HerdrWorkspaceId('w1'), label: 'harness', focused: true,
@@ -46,7 +70,7 @@ const connected: HerdrView = {
   focusedPaneId: HerdrPaneId('w1:p1'),
 }
 const readResult: HerdrReadResult = {
-  paneId: HerdrPaneId('w1:p1'), text: 'alpha output', revision: 4, truncated: false,
+  paneId: HerdrPaneId('w1:p1'), text: 'alpha output', cols: 100, revision: 4, truncated: false,
 }
 
 /** The panel's injected faces, as the mocks a test asserts on. */
@@ -55,6 +79,7 @@ interface BenchFaces {
   readonly read: ReturnType<typeof vi.fn<(paneId: HerdrPaneId) => Promise<HerdrReadResult>>>
   readonly prompt: ReturnType<typeof vi.fn<(paneId: HerdrPaneId, text: string) => Promise<HerdrCommandResult>>>
   readonly sendKeys: ReturnType<typeof vi.fn<(paneId: HerdrPaneId, keys: readonly WireKey[]) => Promise<HerdrCommandResult>>>
+  readonly sendText: ReturnType<typeof vi.fn<(paneId: HerdrPaneId, text: string) => Promise<HerdrCommandResult>>>
   readonly focus: ReturnType<typeof vi.fn<(paneId: HerdrPaneId) => Promise<HerdrCommandResult>>>
   readonly restart: ReturnType<typeof vi.fn<() => void>>
 }
@@ -77,6 +102,7 @@ function bench(
     read: vi.fn(async (paneId: HerdrPaneId) => ({ ...readResult, paneId, text: `output of ${paneId}` })),
     prompt: vi.fn(accept),
     sendKeys: vi.fn(accept),
+    sendText: vi.fn(accept),
     focus: vi.fn(accept),
     restart: vi.fn(),
     ...overrides,
@@ -96,6 +122,7 @@ function bench(
     read: faces.read,
     prompt: faces.prompt,
     sendKeys: faces.sendKeys,
+    sendText: faces.sendText,
     focus: faces.focus,
     restart: faces.restart,
     t: makeTranslate(zh, commonZh),
@@ -402,7 +429,7 @@ describe('HerdrPanel', () => {
     expect(screen.getByText(zh.emptyPanes)).toBeTruthy()
   })
 
-  it('renders an unknown agent status neutrally and an empty pane read as the empty copy', async () => {
+  it('renders an unknown agent status neutrally and an empty pane read as an empty screen', async () => {
     const b = bench(
       {
         ...connected,
@@ -416,7 +443,7 @@ describe('HerdrPanel', () => {
     render(<HerdrPanel {...b.props} />)
     expect(screen.getByLabelText(badgeLabel(zh.statusUnknown))).toBeTruthy()
     clickPane('w1:p1')
-    await waitFor(() => { expect(screen.getByText(zh.outputEmpty)).toBeTruthy() })
+    await waitFor(() => { expect(shownTerminal().writes).toEqual(['']) })
   })
 
   it('maps the remaining wire statuses to their own badge copy', () => {
@@ -511,24 +538,125 @@ describe('HerdrPanel', () => {
     expect(b.faces.prompt).not.toHaveBeenCalled()
   })
 
-  it('keeps the newest output in sight until the human scrolls up', async () => {
+  it('renders the read in a screen at the pane width and fits only the height', async () => {
+    const b = bench()
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('output of w1:p1')
+    const terminal = shownTerminal()
+    expect(terminal.cols).toBe(100)
+    expect(terminal.rows).toBe(30)
+    expect(terminal.textarea?.getAttribute('aria-label')).toBe(zh.terminal.replace('{id}', 'w1:p1'))
+    fit.rows = 12
+    observed?.()
+    expect(terminal.rows).toBe(12)
+    expect(terminal.cols).toBe(100)
+    fit.rows = undefined
+    observed?.()
+    expect(terminal.rows).toBe(12)
+  })
+
+  it('follows a pane width change without remounting the screen', async () => {
+    let cols = 100
+    const b = bench(connected, { read: vi.fn(async (paneId: HerdrPaneId) => ({ ...readResult, paneId, cols, text: `cols ${String(cols)}` })) })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('cols 100')
+    cols = 80
+    act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 4 }, paneTwo] }) })
+    await screen.findByText('cols 80')
+    expect(terminals).toHaveLength(1)
+    expect(shownTerminal().cols).toBe(80)
+  })
+
+  it('replaces the screen on each read but holds it while the human scrolls history', async () => {
     let text = 'first'
     const b = bench(connected, { read: vi.fn(async (paneId: HerdrPaneId) => ({ ...readResult, paneId, text })) })
-    const { rerender } = render(<HerdrPanel {...b.props} />)
+    render(<HerdrPanel {...b.props} />)
     clickPane('w1:p1')
-    const box = await screen.findByText('first')
-    Object.defineProperty(box, 'scrollHeight', { configurable: true, value: 500 })
-    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 100 })
+    await screen.findByText('first')
+    const terminal = shownTerminal()
     text = 'second'
     act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 4 }, paneTwo] }) })
     await screen.findByText('second')
-    expect(box.scrollTop).toBe(500)
-    box.scrollTop = 0
-    fireEvent.scroll(box)
+    terminal.buffer.active.baseY = 50
+    terminal.buffer.active.viewportY = 10
+    const resets = terminal.resets
     text = 'third'
     act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 5 }, paneTwo] }) })
-    rerender(<HerdrPanel {...b.props} />)
-    await screen.findByText('third')
-    expect(box.scrollTop).toBe(0)
+    await waitFor(() => { expect(b.faces.read.mock.calls.length).toBeGreaterThanOrEqual(3) })
+    expect(terminal.resets).toBe(resets)
+    expect(screen.getByText('second')).toBeTruthy()
+  })
+
+  it('types screen input into the selected pane in order, batching keys sent meanwhile', async () => {
+    let release: (value: HerdrCommandResult) => void = () => {}
+    const sendText = vi.fn(async (_paneId: HerdrPaneId, _text: string): Promise<HerdrCommandResult> => {
+      if (sendText.mock.calls.length > 1) return { ok: true }
+      return new Promise<HerdrCommandResult>((resolve) => { release = resolve })
+    })
+    const b = bench(connected, { sendText })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('output of w1:p1')
+    const reads = b.faces.read.mock.calls.length
+    act(() => { shownTerminal().type('l') })
+    act(() => { shownTerminal().type('s') })
+    act(() => { shownTerminal().type('\r') })
+    expect(sendText).toHaveBeenCalledTimes(1)
+    await act(async () => { release({ ok: true }) })
+    await waitFor(() => { expect(sendText).toHaveBeenCalledTimes(2) })
+    expect(sendText.mock.calls.map(([, text]) => text)).toEqual(['l', 's\r'])
+    expect(sendText.mock.calls.every(([paneId]) => paneId === HerdrPaneId('w1:p1'))).toBe(true)
+    await waitFor(() => { expect(b.faces.read.mock.calls.length).toBeGreaterThan(reads) })
+  })
+
+  it('reports refused and thrown screen input beside the controls', async () => {
+    const sendText = vi.fn(async (): Promise<HerdrCommandResult> => ({ ok: false, code: 'input_too_large', message: 'big' }))
+    const b = bench(connected, { sendText })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('output of w1:p1')
+    act(() => { shownTerminal().type('x') })
+    await screen.findByText(zh.commandRejected.replace('{code}', 'input_too_large'))
+    sendText.mockImplementationOnce(async () => { throw new Error('socket gone') })
+    act(() => { shownTerminal().type('y') })
+    await screen.findByText(zh.commandFailed.replace('{message}', 'socket gone'))
+  })
+
+  it('remounts the screen for another pane and drops input typed for the previous one', async () => {
+    const b = bench()
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('output of w1:p1')
+    const first = shownTerminal()
+    clickPane('w1:p2')
+    await screen.findByText('output of w1:p2')
+    expect(first.disposed).toBe(true)
+    expect(terminals).toHaveLength(2)
+  })
+
+  it('queues a re-read of the pane being read and runs it once that read settles', async () => {
+    let release: (value: HerdrReadResult) => void = () => {}
+    const read = vi.fn(async (paneId: HerdrPaneId): Promise<HerdrReadResult> => {
+      if (read.mock.calls.length !== 2) return { ...readResult, paneId, text: `read ${String(read.mock.calls.length)}` }
+      return new Promise<HerdrReadResult>((resolve) => { release = resolve })
+    })
+    const b = bench(connected, { read })
+    render(<HerdrPanel {...b.props} />)
+    clickPane('w1:p1')
+    await screen.findByText('read 1')
+    act(() => { b.view.set({ ...connected, panes: [{ ...paneOne, revision: 4 }, paneTwo] }) })
+    await waitFor(() => { expect(read).toHaveBeenCalledTimes(2) })
+    act(() => { shownTerminal().type('x') })
+    await waitFor(() => { expect(b.faces.sendText).toHaveBeenCalled() })
+    expect(read).toHaveBeenCalledTimes(2)
+    await act(async () => { release({ ...readResult, text: 'read 2' }) })
+    await screen.findByText('read 3')
+  })
+
+  it('normalizes rows to CRLF and drops trailing blank rows so the cursor ends on the last row', () => {
+    expect(screenBytes('a\nb\r\n\u001b[0m\n  \n')).toBe('a\r\nb')
+    expect(screenBytes('prompt $ ')).toBe('prompt $ ')
   })
 })

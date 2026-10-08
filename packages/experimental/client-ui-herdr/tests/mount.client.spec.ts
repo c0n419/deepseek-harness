@@ -29,6 +29,7 @@ interface HerdrNamespace {
   read: (paneId: HerdrPaneId) => Promise<RemoteResult<HerdrReadResult>>
   prompt: (paneId: HerdrPaneId, text: string) => Promise<RemoteResult<HerdrCommandResult>>
   sendKeys: (paneId: HerdrPaneId, keys: readonly HerdrKey[]) => Promise<RemoteResult<HerdrCommandResult>>
+  sendText: (paneId: HerdrPaneId, text: string) => Promise<RemoteResult<HerdrCommandResult>>
   focus: (paneId: HerdrPaneId) => Promise<RemoteResult<HerdrCommandResult>>
 }
 
@@ -44,6 +45,7 @@ function assertPanelInjected(value: Record<string, unknown>): asserts value is R
   assert(typeof value.read === 'function')
   assert(typeof value.prompt === 'function')
   assert(typeof value.sendKeys === 'function')
+  assert(typeof value.sendText === 'function')
   assert(typeof value.focus === 'function')
   assert(typeof value.restart === 'function')
   assert(typeof value.hooks === 'object' && value.hooks !== null)
@@ -111,7 +113,7 @@ async function fixture() {
   // them, so the fake must wrap in the same envelope.
   const read = vi.fn<HerdrNamespace['read']>(async () => ({
     ok: true,
-    value: { paneId: HerdrPaneId('w1:p1'), text: 'out', revision: 1, truncated: false },
+    value: { paneId: HerdrPaneId('w1:p1'), text: 'out', cols: 80, revision: 1, truncated: false },
   }))
   const refused = (): RemoteResult<HerdrCommandResult> => ({
     ok: false,
@@ -121,6 +123,7 @@ async function fixture() {
   // so a shared instance cannot satisfy all three without a cast.
   const prompt = vi.fn<HerdrNamespace['prompt']>(async () => refused())
   const sendKeys = vi.fn<HerdrNamespace['sendKeys']>(async () => refused())
+  const sendText = vi.fn<HerdrNamespace['sendText']>(async () => refused())
   const focus = vi.fn<HerdrNamespace['focus']>(async () => refused())
   // The namespace object stays the same instance the plugin reads, so a test
   // can swap one command face after the mount already captured the namespace.
@@ -133,6 +136,7 @@ async function fixture() {
     read,
     prompt,
     sendKeys,
+    sendText,
     focus,
   }
   ctx.provide('remote.herdr', namespace)
@@ -167,7 +171,7 @@ async function fixture() {
     assertPanelInjected(value)
     return value
   }
-  return { ctx, dispose, unmount, streams, namespace, read, commands: { prompt, sendKeys, focus }, warn, injected, entry, rail }
+  return { ctx, dispose, unmount, streams, namespace, read, commands: { prompt, sendKeys, sendText, focus }, warn, injected, entry, rail }
 }
 
 it('exposes the host marker, the browser inject list, and the rail id', () => {
@@ -282,9 +286,11 @@ it('unwraps the read result and surfaces every refused command as a throw', asyn
   expect(f.read).toHaveBeenCalledWith(HerdrPaneId('w1:p1'))
   await expect(panel.prompt(HerdrPaneId('w1:p1'), 'go')).rejects.toThrow('refused')
   await expect(panel.sendKeys(HerdrPaneId('w1:p1'), ['esc'])).rejects.toThrow('refused')
+  await expect(panel.sendText(HerdrPaneId('w1:p1'), 'ls\r')).rejects.toThrow('refused')
   await expect(panel.focus(HerdrPaneId('w1:p1'))).rejects.toThrow('refused')
   expect(f.commands.prompt).toHaveBeenCalledWith(HerdrPaneId('w1:p1'), 'go')
   expect(f.commands.sendKeys).toHaveBeenCalledWith(HerdrPaneId('w1:p1'), ['esc'])
+  expect(f.commands.sendText).toHaveBeenCalledWith(HerdrPaneId('w1:p1'), 'ls\r')
   expect(f.commands.focus).toHaveBeenCalledWith(HerdrPaneId('w1:p1'))
   await f.dispose()
 })
@@ -295,9 +301,11 @@ it('returns the accepted command result when the server accepts it', async () =>
   const accepted = (): RemoteResult<HerdrCommandResult> => ({ ok: true, value: { ok: true } })
   f.namespace.prompt = vi.fn<HerdrNamespace['prompt']>(async () => accepted())
   f.namespace.sendKeys = vi.fn<HerdrNamespace['sendKeys']>(async () => accepted())
+  f.namespace.sendText = vi.fn<HerdrNamespace['sendText']>(async () => accepted())
   f.namespace.focus = vi.fn<HerdrNamespace['focus']>(async () => accepted())
   expect(await panel.prompt(HerdrPaneId('w1:p1'), 'go')).toEqual({ ok: true })
   expect(await panel.sendKeys(HerdrPaneId('w1:p1'), ['esc'])).toEqual({ ok: true })
+  expect(await panel.sendText(HerdrPaneId('w1:p1'), 'ls\r')).toEqual({ ok: true })
   expect(await panel.focus(HerdrPaneId('w1:p1'))).toEqual({ ok: true })
   await f.dispose()
 })

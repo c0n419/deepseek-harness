@@ -2,7 +2,8 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  HerdrProtocolError, connectionOf, invalidKey, parseEvent, parseFrame, parsePong, parseRead, parseSnapshot, viewSubscriptions,
+  HerdrProtocolError, connectionOf, invalidKey, parseEvent, parseFrame, parseLayoutCols, parsePong, parseRead,
+  parseSnapshot, viewSubscriptions,
 } from '../src/protocol.ts'
 import { HerdrPaneId } from '../src/brand.ts'
 import { asError } from '../src/protocol.ts'
@@ -108,12 +109,19 @@ describe('snapshot decoding', () => {
 describe('read decoding', () => {
   it('reads text with its revision', () => {
     const paneId = HerdrPaneId('w1:p1')
-    expect(parseRead(paneId, { type: 'pane_read', read: { text: 'hello', revision: 4, truncated: true } }))
-      .toEqual({ paneId, text: 'hello', revision: 4, truncated: true })
+    expect(parseRead(paneId, { type: 'pane_read', read: { text: 'hello', revision: 4, truncated: true } }, 80))
+      .toEqual({ paneId, text: 'hello', cols: 80, revision: 4, truncated: true })
   })
 
   it('rejects a payload that is not a pane read', () => {
-    expect(() => parseRead(HerdrPaneId('w1:p1'), { type: 'ok' })).toThrow('expected pane_read, received ok')
+    expect(() => parseRead(HerdrPaneId('w1:p1'), { type: 'ok' }, 80)).toThrow('expected pane_read, received ok')
+  })
+
+  it('finds a pane width in a layout and reports a pane the layout no longer holds', () => {
+    const layout = { type: 'pane_layout', layout: { panes: [{ pane_id: 'w1:p1', rect: { width: 97 } }] } }
+    expect(parseLayoutCols(HerdrPaneId('w1:p1'), layout)).toBe(97)
+    expect(parseLayoutCols(HerdrPaneId('w1:p2'), layout)).toBeUndefined()
+    expect(() => parseLayoutCols(HerdrPaneId('w1:p1'), { type: 'ok' })).toThrow('expected pane_layout, received ok')
   })
 })
 

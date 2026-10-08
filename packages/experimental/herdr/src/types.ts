@@ -150,8 +150,10 @@ export interface HerdrView {
 export interface HerdrRead {
   /** The pane the text came from. */
   paneId: HerdrPaneId
-  /** Requested text with soft wraps joined by default. */
+  /** Recent output as terminal rows, with its SGR color sequences kept. */
   text: string
+  /** Terminal columns of the pane, so a renderer wraps rows exactly as the pane does. */
+  cols: number
   /** Pane revision this text was read at. */
   revision: number
   /** Whether the server trimmed the text to the requested line budget. */
