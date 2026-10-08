@@ -1,0 +1,309 @@
+/* Herdr panel: header, workspace/tab/pane tree column, and the selected pane's
+   output with its prompt and key controls. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  flex: none;
+  padding: 28px clamp(24px, 4vw, 48px) 12px;
+}
+
+:global([data-platform='darwin']) .header {
+  padding-top: calc(28px + var(--dsh-frame-top-clearance, 0px));
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.headerSpacer {
+  flex: 1;
+}
+
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.body {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 0 clamp(24px, 4vw, 48px) 24px;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  flex: none;
+  width: 320px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-caption);
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workspaceRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  cursor: default;
+}
+
+.workspaceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.panes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.paneRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.paneRow:hover,
+.paneRow:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.paneRow[data-selected='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.paneName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paneAgent {
+  color: var(--dsw-alias-label-caption);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+}
+
+.focusMark {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: 560px;
+  padding: 16px;
+  border: 0.5px solid var(--dsw-alias-state-warn-primary);
+  border-radius: var(--dsw-radius-lg);
+}
+
+.noticeTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.noticeHint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.outputPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+}
+
+.outputHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.output {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--dsw-font-markdown-code-block-small);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  flex: none;
+}
+
+.promptRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.promptInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.keyLabel {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+}

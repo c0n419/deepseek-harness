@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/client-ui-herdr/README.md
+/:
+  en: 2e45f7b49746e506
+  zh: cea184009352141f
+/deepseek-ai-dsh-experimental-client-ui-herdr:
+  en: 4374e26d0eb260bd
+  zh: b78368aca25f880d
+/deepseek-ai-dsh-experimental-client-ui-herdr/summary:
+  en: 7ee1122165f80552
+  zh: 26e6a7a8a4e96105
+/deepseek-ai-dsh-experimental-client-ui-herdr/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 364c80ee00a374ff
+/deepseek-ai-dsh-experimental-client-ui-herdr/use-this-package:
+  en: 35602c15c1b07e88
+  zh: eda7bf5736cdc75f
+/deepseek-ai-dsh-experimental-client-ui-herdr/use-this-package/inspect-the-tree:
+  en: e2d10172f216d2e6
+  zh: 5de5e55bd2e7d8d0
+/deepseek-ai-dsh-experimental-client-ui-herdr/use-this-package/read-output-and-send-input:
+  en: b4149c1f47a69c4d
+  zh: ef98edb0d8175dab
+/deepseek-ai-dsh-experimental-client-ui-herdr/use-this-package/connection-states:
+  en: 2e5823d53bd39d7c
+  zh: 1c4a94fc681e31f5
+/deepseek-ai-dsh-experimental-client-ui-herdr/understand-the-implementation:
+  en: c545337c8749b010
+  zh: c2583bd89a773a52
+/deepseek-ai-dsh-experimental-client-ui-herdr/further-exploration:
+  en: fa15e8b7ccb231a7
+  zh: 1b700e1b8cfe4c37
+/deepseek-ai-dsh-experimental-client-ui-herdr/model-experience:
+  en: ebcfa275f56a74ce
+  zh: c17812279522cfb4
+/deepseek-ai-dsh-experimental-client-ui-herdr/model-experience/kv-cache-effect:
+  en: 1785e6b737e75b84
+  zh: 92a9da62b37a6c2c
+/deepseek-ai-dsh-experimental-client-ui-herdr/known-limitations-and-deferred-work:
+  en: 259a3b1ad03249a9
+  zh: e63019ee8bf48b63
+/deepseek-ai-dsh-experimental-client-ui-herdr/known-limitations-and-deferred-work/dev-note:
+  en: 0225ba087c5266f3
+  zh: 4e706f1b2b984e63

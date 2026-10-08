@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Herdr panel",
+    "description": "Inspect Herdr workspaces, tabs, and panes, follow agent status, read pane output, and send prompts."
+  }
+}

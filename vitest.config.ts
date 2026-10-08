@@ -326,6 +326,9 @@ export default defineConfig({
         // The mods band entry imports the bridge's generated Remote contribution, which exists only in lib;
         // the Web snapshot exercises the built entry, while source tests cover mountModsBand.
         'packages/experimental/client-ui-claude-code-mods/src/client/index.ts',
+        // The Herdr panel entry imports the service's generated Remote contribution, which exists only in lib;
+        // source tests cover mountHerdrPanel, and the Web snapshot exercises the built entry.
+        'packages/experimental/client-ui-herdr/src/client/index.ts',
         // Slash/command/input round: per-file gaps deferred with the same
         // client-lane debt. TODO(gui): cover and remove with the lane above.
         'packages/client/ui-commands/src/index.ts',
