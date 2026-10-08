@@ -55,8 +55,9 @@ function createAuth(
   store: RecordCredentials,
   maxAgeDays = 30,
   processOwner: object = {},
+  sameSite?: 'strict' | 'lax',
 ): Promise<BrowserAuth> {
-  return BrowserAuth.create(processOwner, credentials(store), maxAgeDays)
+  return BrowserAuth.create(processOwner, credentials(store), maxAgeDays, sameSite)
 }
 
 function request(url: string, authority = '127.0.0.1:3080', init?: {
@@ -269,5 +270,14 @@ describe('BrowserAuth', () => {
 
     await expect(createAuth(new RecordCredentials(), Number.MAX_SAFE_INTEGER))
       .rejects.toThrow(/safe timestamp range/u)
+  })
+})
+
+describe('browser session cookie SameSite mode', () => {
+  it('issues a Lax cookie when configured for installed web apps', async () => {
+    const auth = await createAuth(new RecordCredentials(), 30, {}, 'lax')
+    const login = exchange(auth)
+    expect(login.state.headers?.['set-cookie']).toMatch(/; HttpOnly; SameSite=Lax$/u)
+    expect(auth.isAuthenticated(request('/', '127.0.0.1:3080', { cookie: login.cookie }))).toBe(true)
   })
 })

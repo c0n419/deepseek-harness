@@ -455,6 +455,13 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /**
+   * Browser-session cookie `SameSite` mode. Default `strict`. `lax` lets an
+   * installed web app (an Android WebAPK) launched from the home screen send
+   * the cookie on its first navigation; cross-site subrequests, form posts,
+   * and WebSocket handshakes still omit it.
+   */
+  cookieSameSite?: CookieSameSite
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
@@ -475,6 +482,9 @@ export interface ConnectionRecoveryConfig {
   /** Deadline in ms for readiness, including physical connection setup. Default: 15000. */
   generationReadyTimeoutMs?: number
 }
+
+/** Browser-session cookie `SameSite` mode; `lax` also sends it on top-level navigations an installed web app or another app starts. */
+export type CookieSameSite = 'strict' | 'lax'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-connection -->
 
